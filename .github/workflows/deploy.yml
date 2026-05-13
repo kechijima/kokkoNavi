@@ -44,6 +44,6 @@ jobs:
 
       # ── Firebase デプロイ（全リソース） ───────────────────
       - name: Deploy to Firebase
-        run: npx firebase-tools deploy --project kokkonavi --non-interactive
+        run: npx firebase-tools deploy --project kokkonavi --non-interactive --force
         env:
           FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
