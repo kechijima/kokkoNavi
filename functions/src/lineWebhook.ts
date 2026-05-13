@@ -69,9 +69,16 @@ async function handleCategorySearch(event: PostbackEvent, client: Client, catego
     return
   }
 
+  const BASE_URL = 'https://kokkonavi.web.app'
+
   const bubbles: any[] = snap.docs.map(d => {
     const c = d.data()
-    const bubble: any = {
+    // linkUrl未設定または暫定値の場合は公開ページURLを自動生成
+    const linkUrl = (c.linkUrl && c.linkUrl !== '__pending__')
+      ? c.linkUrl
+      : `${BASE_URL}/p/${d.id}`
+
+    return {
       type: 'bubble',
       size: 'kilo',
       body: {
@@ -81,20 +88,17 @@ async function handleCategorySearch(event: PostbackEvent, client: Client, catego
         contents: [
           { type: 'text', text: `📂 ${c.category}`, size: 'xs', color: '#FF8C61' },
           { type: 'text', text: c.title, weight: 'bold', size: 'sm', wrap: true, color: '#333333', margin: 'sm' },
-          { type: 'text', text: (c.body ?? '').substring(0, 80) + '…', size: 'xs', wrap: true, color: '#666666', margin: 'sm' },
+          { type: 'text', text: (c.body ?? '').substring(0, 60) + '…', size: 'xs', wrap: true, color: '#666666', margin: 'sm' },
         ],
       },
-    }
-    if (c.linkUrl) {
-      bubble.footer = {
+      footer: {
         type: 'box', layout: 'vertical', paddingAll: 'lg',
         contents: [{
           type: 'button', height: 'sm', style: 'primary', color: '#FF8C61',
-          action: { type: 'uri', label: '詳しく見る', uri: c.linkUrl },
+          action: { type: 'uri', label: '全文を読む 📖', uri: linkUrl },
         }],
-      }
+      },
     }
-    return bubble
   })
 
   await client.replyMessage(event.replyToken, {

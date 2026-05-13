@@ -30,12 +30,16 @@
 
       <div>
         <label class="block text-sm font-medium text-gray-700 mb-1.5">本文 <span class="text-red-400">*</span></label>
-        <textarea v-model="form.body" class="input resize-none" rows="6" placeholder="内容を入力..." />
+        <textarea v-model="form.body" class="input resize-none" rows="8" placeholder="内容を入力..." />
       </div>
 
+      <!-- リンクURL -->
       <div>
         <label class="block text-sm font-medium text-gray-700 mb-1.5">リンクURL</label>
-        <input v-model="form.linkUrl" type="url" class="input" placeholder="https://..." />
+        <div class="flex items-center gap-2 p-3 bg-peach-50 rounded-xl border border-peach-100 mb-2">
+          <span class="text-xs text-peach-500">🔗 空欄のまま保存すると、公開ページのURLが自動設定されます</span>
+        </div>
+        <input v-model="form.linkUrl" type="url" class="input" placeholder="https://... （空欄で自動生成）" />
       </div>
 
       <div>
@@ -43,17 +47,39 @@
         <input v-model="form.imageUrl" type="url" class="input" placeholder="https://..." />
       </div>
 
+      <!-- タグ（マスタータグから選択） -->
       <div>
-        <label class="block text-sm font-medium text-gray-700 mb-1.5">タグ</label>
-        <div class="flex flex-wrap gap-2 mb-2">
-          <span v-for="tag in form.tags" :key="tag" class="badge badge-peach cursor-pointer" @click="removeTag(tag)">
+        <label class="block text-sm font-medium text-gray-700 mb-2">タグ</label>
+
+        <!-- 選択済みタグ -->
+        <div v-if="form.tags.length" class="flex flex-wrap gap-2 mb-3">
+          <button
+            v-for="tag in form.tags"
+            :key="tag"
+            @click="removeTag(tag)"
+            class="badge badge-peach cursor-pointer hover:bg-peach-200 transition-colors"
+          >
             {{ tag }} ×
-          </span>
+          </button>
         </div>
-        <div class="flex gap-2">
-          <input v-model="newTag" type="text" class="input text-sm" placeholder="タグを追加..." @keydown.enter="addTag" />
-          <button @click="addTag" class="btn-secondary text-sm px-3 py-2">追加</button>
+
+        <!-- マスタータグ選択 -->
+        <div v-if="masterTags.length" class="flex flex-wrap gap-2">
+          <button
+            v-for="mt in masterTags"
+            :key="mt.id"
+            @click="toggleTag(mt.name)"
+            :class="[
+              'text-xs px-3 py-1.5 rounded-full border transition-colors',
+              form.tags.includes(mt.name)
+                ? 'border-peach-400 bg-peach-400 text-white'
+                : 'border-gray-200 bg-white text-gray-600 hover:border-peach-300 hover:text-peach-600'
+            ]"
+          >
+            {{ mt.name }}
+          </button>
         </div>
+        <p v-else class="text-xs text-gray-400">タグ管理でタグを追加するとここに表示されます</p>
       </div>
 
       <div class="flex gap-3 pt-2 border-t border-gray-100">
@@ -67,13 +93,13 @@
 </template>
 
 <script setup lang="ts">
-import { addDoc, collection, serverTimestamp } from 'firebase/firestore'
+import { addDoc, collection, getDocs, updateDoc, doc, serverTimestamp } from 'firebase/firestore'
 
 const router = useRouter()
 const { db } = useFirebase()
 
 const saving = ref(false)
-const newTag = ref('')
+const masterTags = ref<{ id: string; name: string }[]>([])
 const categories = ['子育て支援', '住居支援', '就労支援', '経済支援', '法律・権利', 'その他']
 
 const form = ref({
@@ -86,10 +112,10 @@ const form = ref({
   tags: [] as string[],
 })
 
-const addTag = () => {
-  const tag = newTag.value.trim()
-  if (tag && !form.value.tags.includes(tag)) form.value.tags.push(tag)
-  newTag.value = ''
+const toggleTag = (name: string) => {
+  const idx = form.value.tags.indexOf(name)
+  if (idx >= 0) form.value.tags.splice(idx, 1)
+  else form.value.tags.push(name)
 }
 
 const removeTag = (tag: string) => {
@@ -103,14 +129,24 @@ const save = async () => {
   }
   saving.value = true
   try {
-    await addDoc(collection(db, 'contents'), {
+    const base = window?.location?.origin ?? 'https://kokkonavi.web.app'
+    const docRef = await addDoc(collection(db, 'contents'), {
       ...form.value,
+      linkUrl: form.value.linkUrl || '__pending__',
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
     })
+    if (!form.value.linkUrl) {
+      await updateDoc(doc(db, 'contents', docRef.id), { linkUrl: `${base}/p/${docRef.id}` })
+    }
     router.push('/contents')
   } finally {
     saving.value = false
   }
 }
+
+onMounted(async () => {
+  const tagSnap = await getDocs(collection(db, 'tags'))
+  masterTags.value = tagSnap.docs.map(d => ({ id: d.id, name: (d.data() as any).name }))
+})
 </script>

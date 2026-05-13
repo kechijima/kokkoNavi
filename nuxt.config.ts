@@ -34,5 +34,18 @@ export default defineNuxtConfig({
       liffProfileId: process.env.LIFF_PROFILE_ID,
     },
   },
+  // Windows環境でVite IPC ソケットエラーが発生するため WebSocket HMR を使用
+  vite: {
+    server: {
+      hmr: {
+        protocol: 'ws',
+        host: '127.0.0.1',
+      },
+    },
+  },
+  // Nuxt 3.16.x の #app-manifest バグを回避
+  experimental: {
+    appManifest: false,
+  },
   compatibilityDate: '2024-11-01',
 })
