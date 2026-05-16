@@ -6,22 +6,33 @@ const getLineClient = () => new Client({
   channelAccessToken: process.env.LINE_CHANNEL_ACCESS_TOKEN ?? '',
 })
 
-// 管理者がFirestoreにメッセージを書き込んだらLINE Push APIで送信
-export const onNewAdminMessage = functions
+import { admin, db } from './firebaseAdmin'
+
+// メッセージが作成されたら、ユーザー情報の「最後のメッセージ」を更新し、管理者の場合は LINE Push API で送信
+export const onNewMessage = functions
   .region('asia-northeast1')
   .firestore.document('conversations/{userId}/messages/{msgId}')
   .onCreate(async (snap, context) => {
     const msg = snap.data()
-    if (msg.type !== 'admin') return
-
     const { userId } = context.params
-    const client = getLineClient()
 
     try {
-      await client.pushMessage(userId, { type: 'text', text: msg.text })
-      await snap.ref.update({ sent: true, sentAt: new Date() })
+      // ユーザー情報の「最後のメッセージ」を更新
+      await db.collection('users').doc(userId).update({
+        lastMessage: msg.text,
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      })
+
+      // 管理者からのメッセージであれば LINE に送信
+      if (msg.type === 'admin') {
+        const client = getLineClient()
+        await client.pushMessage(userId, { type: 'text', text: msg.text })
+        await snap.ref.update({ sent: true, sentAt: new Date() })
+      }
     } catch (err: any) {
-      console.error(`LINE push failed for ${userId}:`, err)
-      await snap.ref.update({ sent: false, error: err.message ?? String(err) })
+      console.error(`Error processing new message for ${userId}:`, err)
+      if (msg.type === 'admin') {
+        await snap.ref.update({ sent: false, error: err.message ?? String(err) })
+      }
     }
   })

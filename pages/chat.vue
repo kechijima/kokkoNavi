@@ -123,7 +123,7 @@
 </template>
 
 <script setup lang="ts">
-import { collection, query, orderBy, onSnapshot, addDoc, serverTimestamp } from 'firebase/firestore'
+import { collection, query, orderBy, onSnapshot, addDoc, serverTimestamp, doc, updateDoc } from 'firebase/firestore'
 import dayjs from 'dayjs'
 
 const { db, auth } = useFirebase()
@@ -170,6 +170,11 @@ const sendReply = async () => {
     type: 'admin',
     adminId: auth.currentUser?.uid,
     timestamp: serverTimestamp(),
+  })
+  
+  await updateDoc(doc(db, 'users', selectedUserId.value), {
+    lastMessage: text,
+    updatedAt: serverTimestamp(),
   })
   replyText.value = ''
 }

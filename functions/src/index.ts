@@ -1,6 +1,6 @@
 import './firebaseAdmin'
 import { lineWebhook } from './lineWebhook'
 import { broadcastScheduler } from './broadcastScheduler'
-import { onNewAdminMessage } from './lineMessageSender'
+import { onNewMessage } from './lineMessageSender'
 
-export { lineWebhook, broadcastScheduler, onNewAdminMessage }
+export { lineWebhook, broadcastScheduler, onNewMessage }

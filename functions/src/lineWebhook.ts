@@ -279,6 +279,11 @@ async function handleMessage(event: MessageEvent, client: Client) {
       timestamp: admin.firestore.FieldValue.serverTimestamp(),
     })
 
+  await db.collection('users').doc(lineUserId).update({
+    lastMessage: text,
+    updatedAt: admin.firestore.FieldValue.serverTimestamp()
+  })
+
   const userSnap = await db.collection('users').doc(lineUserId).get()
   if (!userSnap.exists) return
   const userData = userSnap.data()!
