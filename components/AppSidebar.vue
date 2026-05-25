@@ -73,13 +73,16 @@ const navItems = [
   { path: '/users', label: 'ユーザー管理', icon: '👥' },
   { path: '/chat', label: 'チャット', icon: '💬' },
   { path: '/contents', label: 'コンテンツ管理', icon: '📝' },
+  { path: '/events', label: 'イベント管理', icon: '📅' },
   { path: '/segments', label: 'セグメント管理', icon: '🎯' },
   { path: '/broadcasts', label: '配信管理', icon: '📢' },
 ]
 
 const settingsItems = [
+  { path: '/settings/categories', label: '種別管理', icon: '📂' },
   { path: '/settings/tags', label: 'タグ管理', icon: '🏷️' },
   { path: '/settings/faq', label: 'FAQ管理', icon: '❓' },
+  { path: '/settings/richmenu', label: 'リッチメニュー', icon: '📱' },
   { path: '/settings/onboarding', label: 'オンボーディング設定', icon: '🔧' },
   { path: '/settings/admins', label: '管理者設定', icon: '👤' },
 ]

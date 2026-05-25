@@ -104,7 +104,7 @@
 <script setup lang="ts">
 import {
   doc, getDoc, addDoc, updateDoc, collection, getDocs,
-  serverTimestamp,
+  serverTimestamp, orderBy, query,
 } from 'firebase/firestore'
 
 const route = useRoute()
@@ -116,8 +116,7 @@ const id = route.params.id as string
 const isNew = id === 'new'
 const saving = ref(false)
 const masterTags = ref<{ id: string; name: string }[]>([])
-
-const categories = ['子育て支援', '住居支援', '就労支援', '経済支援', '法律・権利', 'その他']
+const categories = ref<string[]>([])
 
 const form = ref({
   title: '',
@@ -177,9 +176,15 @@ const save = async () => {
 }
 
 onMounted(async () => {
-  // マスタータグ読み込み
-  const tagSnap = await getDocs(collection(db, 'tags'))
+  // マスタータグ・カテゴリ読み込み
+  const [tagSnap, catSnap] = await Promise.all([
+    getDocs(collection(db, 'tags')),
+    getDocs(query(collection(db, 'categories'), orderBy('order', 'asc'))),
+  ])
   masterTags.value = tagSnap.docs.map(d => ({ id: d.id, name: (d.data() as any).name }))
+  categories.value = catSnap.empty
+    ? ['子育て支援', '住居支援', '就労支援', '経済支援', '法律・権利', 'その他']
+    : catSnap.docs.map(d => (d.data() as any).name as string)
 
   if (!isNew) {
     const snap = await getDoc(doc(db, 'contents', id))

@@ -108,6 +108,66 @@ async function handleCategorySearch(event: PostbackEvent, client: Client, catego
   })
 }
 
+// ─── イベント検索 ────────────────────────────────
+
+async function handleEventSearch(event: PostbackEvent | MessageEvent, client: Client, keyword?: string) {
+  const now = new Date()
+  let query = db.collection('events')
+    .where('status', '==', 'published')
+    .orderBy('startAt', 'asc')
+    .limit(5)
+
+  const snap = await query.get()
+  const upcoming = snap.docs.filter(d => {
+    const s = d.data().startAt?.toDate?.()
+    return !s || s >= now
+  })
+
+  if (upcoming.length === 0) {
+    await client.replyMessage(event.replyToken, {
+      type: 'text',
+      text: '現在公開中のイベントはありません🙇\nまた後日ご確認ください！',
+    })
+    return
+  }
+
+  const bubbles: any[] = upcoming.slice(0, 5).map(d => {
+    const ev = d.data()
+    const startAt = ev.startAt?.toDate?.()
+    const dateStr = startAt
+      ? `${startAt.getFullYear()}/${String(startAt.getMonth() + 1).padStart(2, '0')}/${String(startAt.getDate()).padStart(2, '0')} ${String(startAt.getHours()).padStart(2, '0')}:${String(startAt.getMinutes()).padStart(2, '0')}`
+      : '日時未定'
+    const linkUrl = ev.linkUrl || 'https://www.coccopeer.com/'
+    return {
+      type: 'bubble',
+      size: 'kilo',
+      body: {
+        type: 'box', layout: 'vertical', paddingAll: 'xl',
+        contents: [
+          { type: 'text', text: '📅 イベント', size: 'xs', color: '#FF8C61' },
+          { type: 'text', text: ev.title, weight: 'bold', size: 'sm', wrap: true, color: '#333333', margin: 'sm' },
+          { type: 'text', text: `🗓 ${dateStr}`, size: 'xs', color: '#666666', margin: 'sm' },
+          ev.location ? { type: 'text', text: `📍 ${ev.location}`, size: 'xs', color: '#666666', margin: 'xs' } : { type: 'text', text: '' },
+          { type: 'text', text: (ev.description ?? '').substring(0, 60) + '…', size: 'xs', wrap: true, color: '#888888', margin: 'sm' },
+        ].filter(c => c.text !== ''),
+      },
+      footer: {
+        type: 'box', layout: 'vertical', paddingAll: 'lg',
+        contents: [{
+          type: 'button', height: 'sm', style: 'primary', color: '#FF8C61',
+          action: { type: 'uri', label: '詳しく見る 📖', uri: linkUrl },
+        }],
+      },
+    }
+  })
+
+  await client.replyMessage(event.replyToken, {
+    type: 'flex',
+    altText: '開催予定のイベント',
+    contents: { type: 'carousel', contents: bubbles },
+  })
+}
+
 // ─── FAQ ────────────────────────────────────────
 
 async function handleFaq(event: PostbackEvent | MessageEvent, client: Client) {
@@ -159,32 +219,27 @@ async function handlePostback(event: PostbackEvent, client: Client) {
 
   switch (action) {
     // 支援情報を探す → カテゴリ選択
-    case 'search':
+    case 'search': {
+      const catSnap = await db.collection('categories').orderBy('order', 'asc').get()
+      const catNames: string[] = catSnap.empty
+        ? ['子育て支援', '住居支援', '就労支援', '経済支援', '法律・権利', 'その他']
+        : catSnap.docs.map(d => d.data().name as string)
       await client.replyMessage(event.replyToken, {
         type: 'text',
         text: '🔍 どのカテゴリの情報をお探しですか？\n以下から選んでください👇',
         quickReply: {
-          items: [
-            '子育て支援', '住居支援', '就労支援', '経済支援', '法律・権利', 'その他',
-          ].map(cat => ({
+          items: catNames.slice(0, 13).map(cat => ({
             type: 'action' as const,
-            action: { type: 'postback' as const, label: cat, data: `action=search_cat&cat=${cat}`, displayText: cat },
+            action: { type: 'postback' as const, label: cat.length > 20 ? cat.substring(0, 20) : cat, data: `action=search_cat&cat=${cat}`, displayText: cat },
           })),
         },
       } as TextMessage)
       break
+    }
 
     // カテゴリ確定 → 記事一覧
     case 'search_cat':
       await handleCategorySearch(event, client, params.get('cat') ?? '')
-      break
-
-    // ウェブサイト
-    case 'website':
-      await client.replyMessage(event.replyToken, {
-        type: 'text',
-        text: '🌐 ウェブサイトは絶賛制作中です！\nもうしばらくお待ちください🔨✨',
-      })
       break
 
     // 質問・相談
@@ -204,6 +259,11 @@ async function handlePostback(event: PostbackEvent, client: Client) {
     // よくある質問
     case 'faq':
       await handleFaq(event, client)
+      break
+
+    // イベント
+    case 'events':
+      await handleEventSearch(event, client)
       break
   }
 }
@@ -319,6 +379,7 @@ async function handleMessage(event: MessageEvent, client: Client) {
   // キーワード対応
   const keywords: Record<string, () => Promise<void>> = {
     'よくある質問': () => handleFaq(event, client),
+    'イベント': () => handleEventSearch(event, client),
   }
   for (const [kw, handler] of Object.entries(keywords)) {
     if (text.includes(kw)) { await handler(); return }

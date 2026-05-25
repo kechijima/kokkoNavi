@@ -58,6 +58,23 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
+    // コンテンツ種別（管理者のみ書き込み、LINEからも読み取り可）
+    match /categories/{categoryId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // イベント（管理者のみ書き込み、公開済みのみ公開読み取り可）
+    match /events/{eventId} {
+      allow read, write: if isAdmin();
+      allow read: if resource.data.status == 'published';
+    }
+
+    // システム設定（管理者のみ）
+    match /settings/{settingId} {
+      allow read, write: if isAdmin();
+    }
+
     // 管理者情報（管理者のみ）
     match /admins/{adminId} {
       allow read, write: if isAdmin();
