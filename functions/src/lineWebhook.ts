@@ -242,6 +242,21 @@ async function handlePostback(event: PostbackEvent, client: Client) {
       await handleCategorySearch(event, client, params.get('cat') ?? '')
       break
 
+    // 公式Webサイト（旧postbackとの互換対応）
+    case 'website':
+      await client.replyMessage(event.replyToken, {
+        type: 'template',
+        altText: '公式Webサイトはこちら',
+        template: {
+          type: 'buttons',
+          text: '🌐 こっこピアの公式Webサイトはこちらからどうぞ！',
+          actions: [
+            { type: 'uri', label: 'Webサイトを開く', uri: 'https://www.coccopeer.com/' },
+          ],
+        },
+      })
+      break
+
     // 質問・相談
     case 'consult':
       await db.collection('conversations').doc(lineUserId)
