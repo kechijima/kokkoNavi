@@ -144,32 +144,57 @@ async function handleEventSearch(
   filters: { location?: string; kids?: string } = {},
 ) {
   const now = new Date()
-  let q: FirebaseFirestore.Query = db.collection('events')
-    .where('status', '==', 'published')
-    .orderBy('startAt', 'asc')
-    .limit(20)
 
-  if (filters.location) q = q.where('location', '==', filters.location)
-  if (filters.kids) q = q.where('targetChildren', 'array-contains', filters.kids)
+  // フィルター説明テキスト
+  const filterDesc = [
+    filters.location ? `📍 ${filters.location}` : '',
+    filters.kids ? `👶 お子様${filters.kids}` : '',
+  ].filter(Boolean).join(' / ')
 
-  const snap = await q.get()
-  const upcoming = snap.docs.filter(d => {
-    const s = d.data().startAt?.toDate?.()
-    return !s || s >= now
-  }).slice(0, 5)
+  let upcoming: FirebaseFirestore.QueryDocumentSnapshot[] = []
+  let allPublishedDocs: FirebaseFirestore.QueryDocumentSnapshot[] = []
 
-  // フィルター結果が0件の場合
+  try {
+    // ベースクエリ（フィルターなし）
+    const baseSnap = await db.collection('events')
+      .where('status', '==', 'published')
+      .orderBy('startAt', 'asc')
+      .limit(50)
+      .get()
+    allPublishedDocs = baseSnap.docs
+
+    // メモリ内でフィルタリング（複合インデックス不要・確実に動作）
+    upcoming = allPublishedDocs.filter(d => {
+      const ev = d.data()
+      const s = ev.startAt?.toDate?.()
+      if (s && s < now) return false                                          // 過去イベント除外
+      if (filters.location && ev.location !== filters.location) return false  // 場所フィルター
+      if (filters.kids && !(ev.targetChildren ?? []).includes(filters.kids)) return false // 人数フィルター
+      return true
+    }).slice(0, 5)
+  } catch (err) {
+    console.error('event search error:', err)
+    await client.replyMessage(event.replyToken, {
+      type: 'text',
+      text: 'イベント情報の取得に失敗しました🙇\nしばらく時間をおいて再度お試しください。',
+    })
+    return
+  }
+
+  // 0件の場合
   if (upcoming.length === 0) {
-    const filterDesc = [
-      filters.location ? `📍 ${filters.location}` : '',
-      filters.kids ? `👶 お子様${filters.kids}` : '',
-    ].filter(Boolean).join(' / ')
     await client.replyMessage(event.replyToken, {
       type: 'text',
       text: filterDesc
-        ? `${filterDesc} に該当するイベントは現在ありません🙇\n条件を変えてお探しください！`
+        ? `${filterDesc} に該当するイベントは現在ありません🙇\n「🔄 絞込をリセット」で全件を確認できます！`
         : '現在公開中のイベントはありません🙇\nまた後日ご確認ください！',
-    })
+      quickReply: filterDesc ? {
+        items: [{
+          type: 'action',
+          action: { type: 'postback', label: '🔄 絞込をリセット', data: 'action=event_filter', displayText: 'すべてのイベントを見る' },
+        }],
+      } : undefined,
+    } as any)
     return
   }
 
@@ -178,8 +203,8 @@ async function handleEventSearch(
   // 絞り込みクイックリプライ（最大13件）
   const filterItems: any[] = []
 
-  // 場所で絞る — eventsから取得した場所の一覧
-  const locations = [...new Set(snap.docs.map(d => d.data().location as string).filter(Boolean))].slice(0, 4)
+  // 場所で絞る — 公開イベントの場所一覧
+  const locations = [...new Set(allPublishedDocs.map(d => d.data().location as string).filter(Boolean))].slice(0, 4)
   if (!filters.location && locations.length > 1) {
     locations.forEach(loc => filterItems.push({
       type: 'action',
