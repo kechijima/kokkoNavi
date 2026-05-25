@@ -110,62 +110,109 @@ async function handleCategorySearch(event: PostbackEvent, client: Client, catego
 
 // ─── イベント検索 ────────────────────────────────
 
-async function handleEventSearch(event: PostbackEvent | MessageEvent, client: Client, keyword?: string) {
+function formatDate(ts: any): string {
+  if (!ts) return '日時未定'
+  const d = ts.toDate?.() ?? new Date(ts)
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}/${pad(d.getMonth() + 1)}/${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`
+}
+
+function buildEventBubble(d: FirebaseFirestore.QueryDocumentSnapshot): any {
+  const ev = d.data()
+  const linkUrl = ev.linkUrl || 'https://www.coccopeer.com/'
+  const bodyContents: any[] = [
+    { type: 'text', text: '📅 イベント', size: 'xs', color: '#FF8C61' },
+    { type: 'text', text: ev.title, weight: 'bold', size: 'sm', wrap: true, color: '#333333', margin: 'sm' },
+    { type: 'text', text: `🗓 ${formatDate(ev.startAt)}`, size: 'xs', color: '#666666', margin: 'sm' },
+  ]
+  if (ev.location) bodyContents.push({ type: 'text', text: `📍 ${ev.location}`, size: 'xs', color: '#666666', margin: 'xs' })
+  if (ev.targetChildren?.length) bodyContents.push({ type: 'text', text: `👶 対象: お子様${(ev.targetChildren as string[]).join('・')}`, size: 'xs', color: '#888888', margin: 'xs' })
+  if (ev.description) bodyContents.push({ type: 'text', text: (ev.description as string).substring(0, 60) + '…', size: 'xs', wrap: true, color: '#888888', margin: 'sm' })
+  return {
+    type: 'bubble', size: 'kilo',
+    body: { type: 'box', layout: 'vertical', paddingAll: 'xl', contents: bodyContents },
+    footer: {
+      type: 'box', layout: 'vertical', paddingAll: 'lg',
+      contents: [{ type: 'button', height: 'sm', style: 'primary', color: '#FF8C61', action: { type: 'uri', label: '詳しく見る 📖', uri: linkUrl } }],
+    },
+  }
+}
+
+async function handleEventSearch(
+  event: PostbackEvent | MessageEvent,
+  client: Client,
+  filters: { location?: string; kids?: string } = {},
+) {
   const now = new Date()
-  let query = db.collection('events')
+  let q: FirebaseFirestore.Query = db.collection('events')
     .where('status', '==', 'published')
     .orderBy('startAt', 'asc')
-    .limit(5)
+    .limit(20)
 
-  const snap = await query.get()
+  if (filters.location) q = q.where('location', '==', filters.location)
+  if (filters.kids) q = q.where('targetChildren', 'array-contains', filters.kids)
+
+  const snap = await q.get()
   const upcoming = snap.docs.filter(d => {
     const s = d.data().startAt?.toDate?.()
     return !s || s >= now
-  })
+  }).slice(0, 5)
 
+  // フィルター結果が0件の場合
   if (upcoming.length === 0) {
+    const filterDesc = [
+      filters.location ? `📍 ${filters.location}` : '',
+      filters.kids ? `👶 お子様${filters.kids}` : '',
+    ].filter(Boolean).join(' / ')
     await client.replyMessage(event.replyToken, {
       type: 'text',
-      text: '現在公開中のイベントはありません🙇\nまた後日ご確認ください！',
+      text: filterDesc
+        ? `${filterDesc} に該当するイベントは現在ありません🙇\n条件を変えてお探しください！`
+        : '現在公開中のイベントはありません🙇\nまた後日ご確認ください！',
     })
     return
   }
 
-  const bubbles: any[] = upcoming.slice(0, 5).map(d => {
-    const ev = d.data()
-    const startAt = ev.startAt?.toDate?.()
-    const dateStr = startAt
-      ? `${startAt.getFullYear()}/${String(startAt.getMonth() + 1).padStart(2, '0')}/${String(startAt.getDate()).padStart(2, '0')} ${String(startAt.getHours()).padStart(2, '0')}:${String(startAt.getMinutes()).padStart(2, '0')}`
-      : '日時未定'
-    const linkUrl = ev.linkUrl || 'https://www.coccopeer.com/'
-    return {
-      type: 'bubble',
-      size: 'kilo',
-      body: {
-        type: 'box', layout: 'vertical', paddingAll: 'xl',
-        contents: [
-          { type: 'text', text: '📅 イベント', size: 'xs', color: '#FF8C61' },
-          { type: 'text', text: ev.title, weight: 'bold', size: 'sm', wrap: true, color: '#333333', margin: 'sm' },
-          { type: 'text', text: `🗓 ${dateStr}`, size: 'xs', color: '#666666', margin: 'sm' },
-          ev.location ? { type: 'text', text: `📍 ${ev.location}`, size: 'xs', color: '#666666', margin: 'xs' } : { type: 'text', text: '' },
-          { type: 'text', text: (ev.description ?? '').substring(0, 60) + '…', size: 'xs', wrap: true, color: '#888888', margin: 'sm' },
-        ].filter(c => c.text !== ''),
-      },
-      footer: {
-        type: 'box', layout: 'vertical', paddingAll: 'lg',
-        contents: [{
-          type: 'button', height: 'sm', style: 'primary', color: '#FF8C61',
-          action: { type: 'uri', label: '詳しく見る 📖', uri: linkUrl },
-        }],
-      },
-    }
-  })
+  const bubbles = upcoming.map(buildEventBubble)
 
-  await client.replyMessage(event.replyToken, {
+  // 絞り込みクイックリプライ（最大13件）
+  const filterItems: any[] = []
+
+  // 場所で絞る — eventsから取得した場所の一覧
+  const locations = [...new Set(snap.docs.map(d => d.data().location as string).filter(Boolean))].slice(0, 4)
+  if (!filters.location && locations.length > 1) {
+    locations.forEach(loc => filterItems.push({
+      type: 'action',
+      action: { type: 'postback', label: `📍 ${loc}`.substring(0, 20), data: `action=event_filter&loc=${encodeURIComponent(loc)}`, displayText: `📍 ${loc}` },
+    }))
+  }
+
+  // 子供の人数で絞る
+  if (!filters.kids) {
+    ['1人', '2人', '3人以上'].forEach(kids => filterItems.push({
+      type: 'action',
+      action: { type: 'postback', label: `👶 ${kids}`, data: `action=event_filter&kids=${encodeURIComponent(kids)}`, displayText: `お子様${kids}で絞込` },
+    }))
+  }
+
+  // フィルターリセット
+  if (filters.location || filters.kids) {
+    filterItems.push({
+      type: 'action',
+      action: { type: 'postback', label: '🔄 絞込をリセット', data: 'action=event_filter', displayText: 'すべてのイベントを見る' },
+    })
+  }
+
+  const message: any = {
     type: 'flex',
     altText: '開催予定のイベント',
     contents: { type: 'carousel', contents: bubbles },
-  })
+  }
+  if (filterItems.length > 0) {
+    message.quickReply = { items: filterItems.slice(0, 13) }
+  }
+
+  await client.replyMessage(event.replyToken, message)
 }
 
 // ─── FAQ ────────────────────────────────────────
@@ -237,9 +284,23 @@ async function handlePostback(event: PostbackEvent, client: Client) {
       break
     }
 
-    // カテゴリ確定 → 記事一覧
-    case 'search_cat':
-      await handleCategorySearch(event, client, params.get('cat') ?? '')
+    // カテゴリ確定 → 記事一覧（イベントは専用コレクション）
+    case 'search_cat': {
+      const cat = params.get('cat') ?? ''
+      if (cat === 'イベント') {
+        await handleEventSearch(event, client)
+      } else {
+        await handleCategorySearch(event, client, cat)
+      }
+      break
+    }
+
+    // イベント絞り込み
+    case 'event_filter':
+      await handleEventSearch(event, client, {
+        location: params.get('loc') ? decodeURIComponent(params.get('loc')!) : undefined,
+        kids: params.get('kids') ? decodeURIComponent(params.get('kids')!) : undefined,
+      })
       break
 
     // 公式Webサイト（旧postbackとの互換対応）
@@ -278,7 +339,7 @@ async function handlePostback(event: PostbackEvent, client: Client) {
 
     // イベント
     case 'events':
-      await handleEventSearch(event, client)
+      await handleEventSearch(event, client, {})
       break
   }
 }
@@ -394,7 +455,7 @@ async function handleMessage(event: MessageEvent, client: Client) {
   // キーワード対応
   const keywords: Record<string, () => Promise<void>> = {
     'よくある質問': () => handleFaq(event, client),
-    'イベント': () => handleEventSearch(event, client),
+    'イベント': () => handleEventSearch(event, client, {}),
     '公式Webサイト': async () => {
       await client.replyMessage(event.replyToken, {
         type: 'template',
