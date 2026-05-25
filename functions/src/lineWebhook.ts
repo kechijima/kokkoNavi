@@ -380,6 +380,19 @@ async function handleMessage(event: MessageEvent, client: Client) {
   const keywords: Record<string, () => Promise<void>> = {
     'よくある質問': () => handleFaq(event, client),
     'イベント': () => handleEventSearch(event, client),
+    '公式Webサイト': async () => {
+      await client.replyMessage(event.replyToken, {
+        type: 'template',
+        altText: '公式Webサイトはこちら',
+        template: {
+          type: 'buttons',
+          text: '🌐 こっこピアの公式Webサイトはこちらからどうぞ！',
+          actions: [
+            { type: 'uri', label: 'Webサイトを開く', uri: 'https://www.coccopeer.com/' },
+          ],
+        },
+      })
+    },
   }
   for (const [kw, handler] of Object.entries(keywords)) {
     if (text.includes(kw)) { await handler(); return }
