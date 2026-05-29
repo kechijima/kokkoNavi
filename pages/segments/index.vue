@@ -243,31 +243,35 @@ const tagAssignModal = ref({
 
 // ─── ユーザー数カウント ──────────────────────────
 
-async function calcUserCount(seg: any): Promise<number> {
-  const conditions = seg.conditions ?? {}
-  const userIds = new Set<string>()
-
+function matchSegment(userData: any, conditions: any): boolean {
   if (conditions.tags?.length) {
-    const snap = await getDocs(collection(db, 'users'))
-    snap.docs.forEach(d => {
-      const userTags: string[] = d.data().tags ?? []
-      if (conditions.tags.every((t: string) => userTags.includes(t))) userIds.add(d.id)
-    })
+    const userTags = userData.tags ?? []
+    const hasAll = conditions.tags.every((t: string) => userTags.includes(t))
+    if (!hasAll) return false
   }
 
   if (conditions.anyTags?.length) {
-    const snap = await getDocs(
-      query(collection(db, 'users'), where('tags', 'array-contains-any', conditions.anyTags))
-    )
-    snap.docs.forEach(d => userIds.add(d.id))
+    const userTags = userData.tags ?? []
+    const hasAny = conditions.anyTags.some((t: string) => userTags.includes(t))
+    if (!hasAny) return false
   }
 
-  if (!conditions.tags?.length && !conditions.anyTags?.length) {
-    const snap = await getDocs(collection(db, 'users'))
-    snap.docs.forEach(d => userIds.add(d.id))
+  if (conditions.region) {
+    const userRegion = userData.attributes?.region
+    if (!userRegion || !userRegion.includes(conditions.region)) return false
   }
 
-  return userIds.size
+  return true
+}
+
+async function calcUserCount(seg: any): Promise<number> {
+  const conditions = seg.conditions ?? {}
+  const snap = await getDocs(collection(db, 'users'))
+  let count = 0
+  snap.docs.forEach(d => {
+    if (matchSegment(d.data(), conditions)) count++
+  })
+  return count
 }
 
 async function refreshCounts(segs: any[]) {
@@ -380,12 +384,7 @@ const executeTagAssign = async () => {
     const userIds: string[] = []
 
     snap.docs.forEach(d => {
-      const userTags: string[] = d.data().tags ?? []
-      if (conditions.tags?.length && conditions.tags.every((t: string) => userTags.includes(t))) {
-        userIds.push(d.id)
-      } else if (conditions.anyTags?.length && conditions.anyTags.some((t: string) => userTags.includes(t))) {
-        userIds.push(d.id)
-      } else if (!conditions.tags?.length && !conditions.anyTags?.length) {
+      if (matchSegment(d.data(), conditions)) {
         userIds.push(d.id)
       }
     })

@@ -7,20 +7,46 @@ const getLineClient = () => {
   return new messagingApi.MessagingApiClient({ channelAccessToken })
 }
 
+function matchSegment(userData: any, conditions: any): boolean {
+  if (conditions.tags?.length) {
+    const userTags: string[] = userData.tags ?? []
+    const hasAll = conditions.tags.every((t: string) => userTags.includes(t))
+    if (!hasAll) return false
+  }
+
+  if (conditions.anyTags?.length) {
+    const userTags: string[] = userData.tags ?? []
+    const hasAny = conditions.anyTags.some((t: string) => userTags.includes(t))
+    if (!hasAny) return false
+  }
+
+  if (conditions.region) {
+    const userRegion = userData.attributes?.region
+    if (!userRegion || !userRegion.includes(conditions.region)) return false
+  }
+
+  return true
+}
+
 async function getUsersBySegment(segmentId: string): Promise<string[]> {
   const segSnap = await db.collection('segments').doc(segmentId).get()
   if (!segSnap.exists) return []
 
   const segment = segSnap.data()!
-  let query: admin.firestore.Query = db.collection('users')
+  const conditions = segment.conditions ?? {}
+
+  const snap = await db.collection('users')
     .where('onboardingStatus', '==', 'completed')
+    .get()
 
-  if (segment.conditions?.tags?.length > 0) {
-    query = query.where('tags', 'array-contains-any', segment.conditions.tags)
-  }
+  const userIds: string[] = []
+  snap.docs.forEach(d => {
+    if (matchSegment(d.data(), conditions)) {
+      userIds.push(d.id)
+    }
+  })
 
-  const snap = await query.get()
-  return snap.docs.map(d => d.id)
+  return userIds
 }
 
 export const broadcastScheduler = functions
