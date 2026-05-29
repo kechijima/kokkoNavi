@@ -1,10 +1,10 @@
 import * as functions from 'firebase-functions/v1'
 import { admin, db } from './firebaseAdmin'
-import { Client } from '@line/bot-sdk'
+import { messagingApi } from '@line/bot-sdk'
 
 const getLineClient = () => {
   const channelAccessToken = process.env.LINE_CHANNEL_ACCESS_TOKEN ?? ''
-  return new Client({ channelAccessToken })
+  return new messagingApi.MessagingApiClient({ channelAccessToken })
 }
 
 async function getUsersBySegment(segmentId: string): Promise<string[]> {
@@ -116,7 +116,7 @@ export const broadcastScheduler = functions
         const batchSize = 500
         for (let i = 0; i < userIds.length; i += batchSize) {
           const batch = userIds.slice(i, i + batchSize)
-          await client.multicast(batch, messages)
+          await client.multicast({ to: batch, messages })
         }
 
         await docSnap.ref.update({

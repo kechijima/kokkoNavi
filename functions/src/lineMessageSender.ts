@@ -1,8 +1,8 @@
 import * as functions from 'firebase-functions/v1'
 
-import { Client } from '@line/bot-sdk'
+import { messagingApi } from '@line/bot-sdk'
 
-const getLineClient = () => new Client({
+const getLineClient = () => new messagingApi.MessagingApiClient({
   channelAccessToken: process.env.LINE_CHANNEL_ACCESS_TOKEN ?? '',
 })
 
@@ -26,7 +26,10 @@ export const onNewMessage = functions
       // 管理者からのメッセージであれば LINE に送信
       if (msg.type === 'admin') {
         const client = getLineClient()
-        await client.pushMessage(userId, { type: 'text', text: msg.text })
+        await client.pushMessage({
+          to: userId,
+          messages: [{ type: 'text', text: msg.text }]
+        })
         await snap.ref.update({ sent: true, sentAt: new Date() })
       }
     } catch (err: any) {

@@ -1,16 +1,16 @@
 import * as functions from 'firebase-functions/v1'
 import { admin, db } from './firebaseAdmin'
 import {
-  Client,
   WebhookEvent,
   TextMessage,
   FollowEvent,
   MessageEvent,
   PostbackEvent,
+  messagingApi,
 } from '@line/bot-sdk'
 import type { Request, Response } from 'firebase-functions/v1'
 
-const getLineClient = () => new Client({
+const getLineClient = () => new messagingApi.MessagingApiClient({
   channelAccessToken: process.env.LINE_CHANNEL_ACCESS_TOKEN ?? '',
 })
 
@@ -23,16 +23,19 @@ async function getActiveOnboardingFlow() {
   return { id: snap.docs[0].id, ...snap.docs[0].data() } as any
 }
 
-async function sendNextOnboardingQuestion(client: Client, lineUserId: string, flow: any, stepIndex: number) {
+async function sendNextOnboardingQuestion(client: messagingApi.MessagingApiClient, lineUserId: string, flow: any, stepIndex: number) {
   if (stepIndex >= flow.steps.length) {
     await db.collection('users').doc(lineUserId).update({
       onboardingStatus: 'completed',
       onboardingStep: stepIndex,
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
     })
-    await client.pushMessage(lineUserId, {
-      type: 'text',
-      text: '✅ ご回答ありがとうございます！\nあなたに合った情報をお届けします🌸\n\nこれからもよろしくお願いします！',
+    await client.pushMessage({
+      to: lineUserId,
+      messages: [{
+        type: 'text',
+        text: '✅ ご回答ありがとうございます！\nあなたに合った情報をお届けします🌸\n\nこれからもよろしくお願いします！',
+      }]
     })
     return
   }
@@ -43,28 +46,37 @@ async function sendNextOnboardingQuestion(client: Client, lineUserId: string, fl
       type: 'action' as const,
       action: { type: 'message' as const, label: opt.length > 20 ? opt.substring(0, 20) : opt, text: opt },
     }))
-    await client.pushMessage(lineUserId, {
-      type: 'text',
-      text: step.question + (step.type === 'multi' ? '\n（複数選んで送信できます）' : ''),
-      quickReply: { items: quickReplyItems.slice(0, 13) },
-    } as TextMessage)
+    await client.pushMessage({
+      to: lineUserId,
+      messages: [{
+        type: 'text',
+        text: step.question + (step.type === 'multi' ? '\n（複数選んで送信できます）' : ''),
+        quickReply: { items: quickReplyItems.slice(0, 13) },
+      } as TextMessage]
+    })
   } else {
-    await client.pushMessage(lineUserId, { type: 'text', text: step.question })
+    await client.pushMessage({
+      to: lineUserId,
+      messages: [{ type: 'text', text: step.question }]
+    })
   }
 }
 
 // ─── 支援情報カテゴリ検索 ────────────────────────
 
-async function handleCategorySearch(event: PostbackEvent, client: Client, category: string) {
+async function handleCategorySearch(event: PostbackEvent, client: messagingApi.MessagingApiClient, category: string) {
   const snap = await db.collection('contents')
     .where('category', '==', category)
     .where('status', '==', 'published')
     .limit(5).get()
 
   if (snap.empty) {
-    await client.replyMessage(event.replyToken, {
-      type: 'text',
-      text: `「${category}」の情報はまだ準備中です🙇\nほかのカテゴリもぜひご覧ください！`,
+    await client.replyMessage({
+      replyToken: event.replyToken,
+      messages: [{
+        type: 'text',
+        text: `「${category}」の情報はまだ準備中です🙇\nほかのカテゴリもぜひご覧ください！`,
+      }]
     })
     return
   }
@@ -101,10 +113,13 @@ async function handleCategorySearch(event: PostbackEvent, client: Client, catego
     }
   })
 
-  await client.replyMessage(event.replyToken, {
-    type: 'flex',
-    altText: `${category}の支援情報`,
-    contents: { type: 'carousel', contents: bubbles },
+  await client.replyMessage({
+    replyToken: event.replyToken,
+    messages: [{
+      type: 'flex',
+      altText: `${category}の支援情報`,
+      contents: { type: 'carousel', contents: bubbles },
+    }]
   })
 }
 
@@ -140,7 +155,7 @@ function buildEventBubble(d: FirebaseFirestore.QueryDocumentSnapshot): any {
 
 async function handleEventSearch(
   event: PostbackEvent | MessageEvent,
-  client: Client,
+  client: messagingApi.MessagingApiClient,
   filters: { location?: string; kids?: string } = {},
 ) {
   const now = new Date()
@@ -174,27 +189,33 @@ async function handleEventSearch(
     }).slice(0, 5)
   } catch (err) {
     console.error('event search error:', err)
-    await client.replyMessage(event.replyToken, {
-      type: 'text',
-      text: 'イベント情報の取得に失敗しました🙇\nしばらく時間をおいて再度お試しください。',
+    await client.replyMessage({
+      replyToken: event.replyToken,
+      messages: [{
+        type: 'text',
+        text: 'イベント情報の取得に失敗しました🙇\nしばらく時間をおいて再度お試しください。',
+      }]
     })
     return
   }
 
   // 0件の場合
   if (upcoming.length === 0) {
-    await client.replyMessage(event.replyToken, {
-      type: 'text',
-      text: filterDesc
-        ? `${filterDesc} に該当するイベントは現在ありません🙇\n「🔄 絞込をリセット」で全件を確認できます！`
-        : '現在公開中のイベントはありません🙇\nまた後日ご確認ください！',
-      quickReply: filterDesc ? {
-        items: [{
-          type: 'action',
-          action: { type: 'postback', label: '🔄 絞込をリセット', data: 'action=event_filter', displayText: 'すべてのイベントを見る' },
-        }],
-      } : undefined,
-    } as any)
+    await client.replyMessage({
+      replyToken: event.replyToken,
+      messages: [{
+        type: 'text',
+        text: filterDesc
+          ? `${filterDesc} に該当するイベントは現在ありません🙇\n「🔄 絞込をリセット」で全件を確認できます！`
+          : '現在公開中のイベントはありません🙇\nまた後日ご確認ください！',
+        quickReply: filterDesc ? {
+          items: [{
+            type: 'action',
+            action: { type: 'postback', label: '🔄 絞込をリセット', data: 'action=event_filter', displayText: 'すべてのイベントを見る' },
+          }],
+        } : undefined,
+      }]
+    })
     return
   }
 
@@ -237,21 +258,27 @@ async function handleEventSearch(
     message.quickReply = { items: filterItems.slice(0, 13) }
   }
 
-  await client.replyMessage(event.replyToken, message)
+  await client.replyMessage({
+    replyToken: event.replyToken,
+    messages: [message]
+  })
 }
 
 // ─── FAQ ────────────────────────────────────────
 
-async function handleFaq(event: PostbackEvent | MessageEvent, client: Client) {
+async function handleFaq(event: PostbackEvent | MessageEvent, client: messagingApi.MessagingApiClient) {
   const snap = await db.collection('faqs')
     .where('isActive', '==', true)
     .orderBy('order', 'asc')
     .limit(8).get()
 
   if (snap.empty) {
-    await client.replyMessage(event.replyToken, {
-      type: 'text',
-      text: 'よくある質問は準備中です。\nお気軽にメッセージでご相談ください😊',
+    await client.replyMessage({
+      replyToken: event.replyToken,
+      messages: [{
+        type: 'text',
+        text: 'よくある質問は準備中です。\nお気軽にメッセージでご相談ください😊',
+      }]
     })
     return
   }
@@ -268,23 +295,26 @@ async function handleFaq(event: PostbackEvent | MessageEvent, client: Client) {
     }
   })
 
-  await client.replyMessage(event.replyToken, {
-    type: 'flex',
-    altText: 'よくある質問',
-    contents: {
-      type: 'bubble',
-      header: {
-        type: 'box', layout: 'vertical', paddingAll: 'xl', backgroundColor: '#FFF8F5',
-        contents: [{ type: 'text', text: '❓ よくある質問', weight: 'bold', size: 'md', color: '#FF8C61' }],
+  await client.replyMessage({
+    replyToken: event.replyToken,
+    messages: [{
+      type: 'flex',
+      altText: 'よくある質問',
+      contents: {
+        type: 'bubble',
+        header: {
+          type: 'box', layout: 'vertical', paddingAll: 'xl', backgroundColor: '#FFF8F5',
+          contents: [{ type: 'text', text: '❓ よくある質問', weight: 'bold', size: 'md', color: '#FF8C61' }],
+        },
+        body: { type: 'box', layout: 'vertical', paddingAll: 'lg', contents },
       },
-      body: { type: 'box', layout: 'vertical', paddingAll: 'lg', contents },
-    },
+    }]
   })
 }
 
 // ─── Postback（リッチメニューボタン） ───────────
 
-async function handlePostback(event: PostbackEvent, client: Client) {
+async function handlePostback(event: PostbackEvent, client: messagingApi.MessagingApiClient) {
   const lineUserId = event.source.userId!
   const params = new URLSearchParams(event.postback.data)
   const action = params.get('action')
@@ -296,16 +326,19 @@ async function handlePostback(event: PostbackEvent, client: Client) {
       const catNames: string[] = catSnap.empty
         ? ['子育て支援', '住居支援', '就労支援', '経済支援', '法律・権利', 'その他']
         : catSnap.docs.map(d => d.data().name as string)
-      await client.replyMessage(event.replyToken, {
-        type: 'text',
-        text: '🔍 どのカテゴリの情報をお探しですか？\n以下から選んでください👇',
-        quickReply: {
-          items: catNames.slice(0, 13).map(cat => ({
-            type: 'action' as const,
-            action: { type: 'postback' as const, label: cat.length > 20 ? cat.substring(0, 20) : cat, data: `action=search_cat&cat=${cat}`, displayText: cat },
-          })),
-        },
-      } as TextMessage)
+      await client.replyMessage({
+        replyToken: event.replyToken,
+        messages: [{
+          type: 'text',
+          text: '🔍 どのカテゴリの情報をお探しですか？\n以下から選んでください👇',
+          quickReply: {
+            items: catNames.slice(0, 13).map(cat => ({
+              type: 'action' as const,
+              action: { type: 'postback' as const, label: cat.length > 20 ? cat.substring(0, 20) : cat, data: `action=search_cat&cat=${cat}`, displayText: cat },
+            })),
+          },
+        } as TextMessage]
+      })
       break
     }
 
@@ -330,16 +363,19 @@ async function handlePostback(event: PostbackEvent, client: Client) {
 
     // 公式Webサイト（旧postbackとの互換対応）
     case 'website':
-      await client.replyMessage(event.replyToken, {
-        type: 'template',
-        altText: '公式Webサイトはこちら',
-        template: {
-          type: 'buttons',
-          text: '🌐 こっこピアの公式Webサイトはこちらからどうぞ！',
-          actions: [
-            { type: 'uri', label: 'Webサイトを開く', uri: 'https://www.coccopeer.com/' },
-          ],
-        },
+      await client.replyMessage({
+        replyToken: event.replyToken,
+        messages: [{
+          type: 'template',
+          altText: '公式Webサイトはこちら',
+          template: {
+            type: 'buttons',
+            text: '🌐 こっこピアの公式Webサイトはこちらからどうぞ！',
+            actions: [
+              { type: 'uri', label: 'Webサイトを開く', uri: 'https://www.coccopeer.com/' },
+            ],
+          },
+        }]
       })
       break
 
@@ -351,9 +387,12 @@ async function handlePostback(event: PostbackEvent, client: Client) {
           type: 'user',
           timestamp: admin.firestore.FieldValue.serverTimestamp(),
         })
-      await client.replyMessage(event.replyToken, {
-        type: 'text',
-        text: '💬 ご相談を承りました！\nメッセージをお送りいただくと担当者が確認してご回答いたします😊\n\n少々お時間をいただく場合がありますが、お気軽にどうぞ！',
+      await client.replyMessage({
+        replyToken: event.replyToken,
+        messages: [{
+          type: 'text',
+          text: '💬 ご相談を承りました！\nメッセージをお送りいただくと担当者が確認してご回答いたします😊\n\n少々お時間をいただく場合がありますが、お気軽にどうぞ！',
+        }]
       })
       break
 
@@ -371,7 +410,7 @@ async function handlePostback(event: PostbackEvent, client: Client) {
 
 // ─── フォロー ────────────────────────────────────
 
-async function handleFollow(event: FollowEvent, client: Client) {
+async function handleFollow(event: FollowEvent, client: messagingApi.MessagingApiClient) {
   const lineUserId = event.source.userId!
   const profile = await client.getProfile(lineUserId)
 
@@ -390,45 +429,51 @@ async function handleFollow(event: FollowEvent, client: Client) {
   const liffUrl = liffId ? `https://liff.line.me/${liffId}` : ''
 
   if (liffUrl) {
-    await client.replyMessage(event.replyToken, [
-      {
-        type: 'text',
-        text: `こんにちは、${profile.displayName}さん！🌸\nこっこナビへようこそ！\n\nひとりで頑張らなくていいよ。\nあなたに寄り添う情報をお届けします💕`,
-      },
-      {
-        type: 'flex',
-        altText: 'プロフィールを設定してください',
-        contents: {
-          type: 'bubble',
-          body: {
-            type: 'box', layout: 'vertical',
-            contents: [
-              { type: 'text', text: '🐣 プロフィール設定', weight: 'bold', size: 'md', color: '#FF8C61' },
-              { type: 'text', text: 'あなたに合った情報をお届けするために、いくつか教えてください（1分で完了）', size: 'sm', color: '#666666', wrap: true, margin: 'md' },
-            ],
-          },
-          footer: {
-            type: 'box', layout: 'vertical',
-            contents: [{
-              type: 'button',
-              action: { type: 'uri', label: 'プロフィールを設定する →', uri: liffUrl },
-              style: 'primary', color: '#FF8C61',
-            }],
+    await client.replyMessage({
+      replyToken: event.replyToken,
+      messages: [
+        {
+          type: 'text',
+          text: `こんにちは、${profile.displayName}さん！🌸\nこっこナビへようこそ！\n\nひとりで頑張らなくていいよ。\nあなたに寄り添う情報をお届けします💕`,
+        },
+        {
+          type: 'flex',
+          altText: 'プロフィールを設定してください',
+          contents: {
+            type: 'bubble',
+            body: {
+              type: 'box', layout: 'vertical',
+              contents: [
+                { type: 'text', text: '🐣 プロフィール設定', weight: 'bold', size: 'md', color: '#FF8C61' },
+                { type: 'text', text: 'あなたに合った情報をお届けするために、いくつか教えてください（1分で完了）', size: 'sm', color: '#666666', wrap: true, margin: 'md' },
+              ],
+            },
+            footer: {
+              type: 'box', layout: 'vertical',
+              contents: [{
+                type: 'button',
+                action: { type: 'uri', label: 'プロフィールを設定する →', uri: liffUrl },
+                style: 'primary', color: '#FF8C61',
+              }],
+            },
           },
         },
-      },
-    ])
+      ]
+    })
   } else {
-    await client.replyMessage(event.replyToken, {
-      type: 'text',
-      text: `こんにちは、${profile.displayName}さん！🌸\nこっこナビへようこそ！`,
+    await client.replyMessage({
+      replyToken: event.replyToken,
+      messages: [{
+        type: 'text',
+        text: `こんにちは、${profile.displayName}さん！🌸\nこっこナビへようこそ！`,
+      }]
     })
   }
 }
 
 // ─── メッセージ ──────────────────────────────────
 
-async function handleMessage(event: MessageEvent, client: Client) {
+async function handleMessage(event: MessageEvent, client: messagingApi.MessagingApiClient) {
   if (event.message.type !== 'text') return
   const lineUserId = event.source.userId!
   const text = event.message.text
@@ -482,16 +527,19 @@ async function handleMessage(event: MessageEvent, client: Client) {
     'よくある質問': () => handleFaq(event, client),
     'イベント': () => handleEventSearch(event, client, {}),
     '公式Webサイト': async () => {
-      await client.replyMessage(event.replyToken, {
-        type: 'template',
-        altText: '公式Webサイトはこちら',
-        template: {
-          type: 'buttons',
-          text: '🌐 こっこピアの公式Webサイトはこちらからどうぞ！',
-          actions: [
-            { type: 'uri', label: 'Webサイトを開く', uri: 'https://www.coccopeer.com/' },
-          ],
-        },
+      await client.replyMessage({
+        replyToken: event.replyToken,
+        messages: [{
+          type: 'template',
+          altText: '公式Webサイトはこちら',
+          template: {
+            type: 'buttons',
+            text: '🌐 こっこピアの公式Webサイトはこちらからどうぞ！',
+            actions: [
+              { type: 'uri', label: 'Webサイトを開く', uri: 'https://www.coccopeer.com/' },
+            ],
+          },
+        }]
       })
     },
   }
