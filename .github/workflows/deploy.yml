@@ -30,15 +30,17 @@ jobs:
         run: cd functions && npm run build
 
       # ── LINE環境変数の書き出し ─────────────────────────────
-      - name: Create functions .env
+      - name: Prepare functions environment
         run: |
-          if [ -z "${{ secrets.LINE_CHANNEL_SECRET }}" ] || [ -z "${{ secrets.LINE_CHANNEL_ACCESS_TOKEN }}" ] || [ -z "${{ secrets.LIFF_ID }}" ]; then
-            echo "Required LINE secrets are missing. Set LINE_CHANNEL_SECRET, LINE_CHANNEL_ACCESS_TOKEN, and LIFF_ID in GitHub Actions secrets."
-            exit 1
+          if [ -n "${{ secrets.LINE_CHANNEL_SECRET }}" ] && [ -n "${{ secrets.LINE_CHANNEL_ACCESS_TOKEN }}" ] && [ -n "${{ secrets.LIFF_ID }}" ]; then
+            echo "LINE_CHANNEL_SECRET=${{ secrets.LINE_CHANNEL_SECRET }}" > functions/.env
+            echo "LINE_CHANNEL_ACCESS_TOKEN=${{ secrets.LINE_CHANNEL_ACCESS_TOKEN }}" >> functions/.env
+            echo "LIFF_ID=${{ secrets.LIFF_ID }}" >> functions/.env
+            echo "FIREBASE_DEPLOY_ARGS=" >> "$GITHUB_ENV"
+          else
+            echo "::warning::LINE secrets are missing. Skipping Functions deploy to avoid overwriting working environment variables."
+            echo "FIREBASE_DEPLOY_ARGS=--only hosting,firestore" >> "$GITHUB_ENV"
           fi
-          echo "LINE_CHANNEL_SECRET=${{ secrets.LINE_CHANNEL_SECRET }}" > functions/.env
-          echo "LINE_CHANNEL_ACCESS_TOKEN=${{ secrets.LINE_CHANNEL_ACCESS_TOKEN }}" >> functions/.env
-          echo "LIFF_ID=${{ secrets.LIFF_ID }}" >> functions/.env
 
       # ── Nuxt 静的ビルド ───────────────────────────────────
       - name: Generate Nuxt static site
@@ -55,6 +57,6 @@ jobs:
 
       # ── Firebase デプロイ（全リソース） ───────────────────
       - name: Deploy to Firebase
-        run: npx firebase-tools deploy --project kokkonavi --non-interactive --force
+        run: npx firebase-tools deploy --project kokkonavi --non-interactive --force $FIREBASE_DEPLOY_ARGS
         env:
           FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
