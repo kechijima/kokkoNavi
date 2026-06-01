@@ -98,6 +98,7 @@
 
         <!-- 返信フォーム -->
         <div class="px-5 py-4 border-t border-gray-100 flex-shrink-0">
+          <p v-if="sendError" class="text-xs text-red-500 mb-2">{{ sendError }}</p>
           <div class="flex gap-2">
             <textarea
               v-model="replyText"
@@ -134,6 +135,7 @@ const selectedUser = ref<any>(null)
 const users = ref<any[]>([])
 const messages = ref<any[]>([])
 const replyText = ref('')
+const sendError = ref('')
 const chatContainer = ref<HTMLElement>()
 let unsubMessages: (() => void) | null = null
 
@@ -165,18 +167,22 @@ const selectUser = (user: any) => {
 const sendReply = async () => {
   const text = replyText.value.trim()
   if (!text || !selectedUserId.value) return
-  await addDoc(collection(db, 'conversations', selectedUserId.value, 'messages'), {
-    text,
-    type: 'admin',
-    adminId: auth.currentUser?.uid,
-    timestamp: serverTimestamp(),
-  })
-  
-  await updateDoc(doc(db, 'users', selectedUserId.value), {
-    lastMessage: text,
-    updatedAt: serverTimestamp(),
-  })
-  replyText.value = ''
+  sendError.value = ''
+  try {
+    await addDoc(collection(db, 'conversations', selectedUserId.value, 'messages'), {
+      text,
+      type: 'admin',
+      adminId: auth.currentUser?.uid,
+      timestamp: serverTimestamp(),
+    })
+    await updateDoc(doc(db, 'users', selectedUserId.value), {
+      lastMessage: text,
+      updatedAt: serverTimestamp(),
+    })
+    replyText.value = ''
+  } catch (err: any) {
+    sendError.value = '送信に失敗しました: ' + (err?.message ?? String(err))
+  }
 }
 
 const formatTime = (ts: any) => {
