@@ -78,8 +78,9 @@ async function handleCategorySearch(event: PostbackEvent, client: messagingApi.M
 
   const matchedDocs = snap.docs
     .filter(d => {
+      if (userTagSet.size === 0) return true
       const contentTags = d.data().tags
-      return Array.isArray(contentTags) && contentTags.some(tag => userTagSet.has(tag))
+      return !Array.isArray(contentTags) || contentTags.length === 0 || contentTags.some(tag => userTagSet.has(tag))
     })
     .slice(0, 5)
 
