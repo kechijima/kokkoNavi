@@ -46,9 +46,6 @@
           <NuxtLink :to="`/broadcasts/new?segmentId=${seg.id}`" class="btn-primary text-xs px-3 py-1.5 flex-1 justify-center">
             配信する
           </NuxtLink>
-          <button @click="openTagAssign(seg)" class="btn-secondary text-xs px-3 py-1.5">
-            🏷️ タグ設定
-          </button>
           <button @click="openEdit(seg)" class="btn-ghost text-xs px-3 py-1.5 text-gray-500 hover:text-gray-700 hover:bg-gray-50">
             編集
           </button>
@@ -133,90 +130,13 @@
       </div>
     </div>
 
-    <!-- 一括タグ設定モーダル -->
-    <div v-if="tagAssignModal.show" class="fixed inset-0 bg-black/30 flex items-center justify-center z-50 p-4">
-      <div class="card w-full max-w-md">
-        <h3 class="section-title">🏷️ セグメントにタグを設定</h3>
-        <p class="text-sm text-gray-600 mb-4">
-          「<strong>{{ tagAssignModal.segment?.name }}</strong>」に該当するユーザー全員に、選択したタグを一括付与します。
-        </p>
-
-        <div class="space-y-4">
-          <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1.5">付与するタグ <span class="text-red-400">*</span></label>
-            <div v-if="masterTags.length > 0" class="flex flex-wrap gap-2 mb-2">
-              <button
-                v-for="t in masterTags"
-                :key="t.id"
-                @click="toggleAssignTag(t.name)"
-                :class="[
-                  'badge text-sm px-3 py-1 cursor-pointer transition-all',
-                  tagAssignModal.selectedTags.includes(t.name) ? 'badge-peach' : 'badge-gray'
-                ]"
-              >
-                {{ tagAssignModal.selectedTags.includes(t.name) ? '✓ ' : '' }}{{ t.name }}
-              </button>
-            </div>
-            <div class="flex gap-2 mt-2">
-              <input
-                v-model="tagAssignModal.customTag"
-                type="text"
-                class="input text-sm"
-                placeholder="タグ名を直接入力..."
-                @keydown.enter="addCustomAssignTag"
-              />
-              <button @click="addCustomAssignTag" class="btn-secondary text-sm px-3">追加</button>
-            </div>
-            <div v-if="tagAssignModal.selectedTags.length" class="flex flex-wrap gap-1 mt-2">
-              <span
-                v-for="tag in tagAssignModal.selectedTags"
-                :key="tag"
-                class="badge badge-peach cursor-pointer"
-                @click="tagAssignModal.selectedTags = tagAssignModal.selectedTags.filter(t => t !== tag)"
-              >
-                {{ tag }} ×
-              </span>
-            </div>
-          </div>
-
-          <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1.5">操作</label>
-            <div class="flex gap-4">
-              <label class="flex items-center gap-2 cursor-pointer text-sm">
-                <input v-model="tagAssignModal.action" type="radio" value="add" />
-                <span>タグを追加</span>
-              </label>
-              <label class="flex items-center gap-2 cursor-pointer text-sm">
-                <input v-model="tagAssignModal.action" type="radio" value="remove" />
-                <span class="text-red-500">タグを削除</span>
-              </label>
-            </div>
-          </div>
-
-          <div v-if="tagAssignModal.result" :class="['text-sm p-3 rounded-lg', tagAssignModal.result.ok ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700']">
-            {{ tagAssignModal.result.message }}
-          </div>
-        </div>
-
-        <div class="flex gap-3 mt-5 pt-4 border-t border-gray-100">
-          <button
-            @click="executeTagAssign"
-            class="btn-primary"
-            :disabled="tagAssignModal.selectedTags.length === 0 || tagAssignModal.running"
-          >
-            {{ tagAssignModal.running ? '処理中...' : tagAssignModal.action === 'add' ? 'タグを付与する' : 'タグを削除する' }}
-          </button>
-          <button @click="closeTagAssign" class="btn-secondary">閉じる</button>
-        </div>
-      </div>
-    </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import {
   collection, query, orderBy, onSnapshot, getDocs, where,
-  addDoc, updateDoc, deleteDoc, doc, serverTimestamp, arrayUnion, arrayRemove,
+  addDoc, updateDoc, deleteDoc, doc, serverTimestamp,
 } from 'firebase/firestore'
 
 const { db } = useFirebase()
@@ -230,16 +150,6 @@ const counting = ref<Record<string, boolean>>({})
 const tagInput = ref('')
 const anyTagInput = ref('')
 const newSeg = ref({ name: '', tags: [] as string[], anyTags: [] as string[], region: '' })
-
-const tagAssignModal = ref({
-  show: false,
-  segment: null as any,
-  selectedTags: [] as string[],
-  customTag: '',
-  action: 'add' as 'add' | 'remove',
-  running: false,
-  result: null as { ok: boolean; message: string } | null,
-})
 
 // ─── ユーザー数カウント ──────────────────────────
 
@@ -349,66 +259,6 @@ const saveSegment = async () => {
 const deleteSegment = async (id: string) => {
   if (!confirm('このセグメントを削除しますか？')) return
   await deleteDoc(doc(db, 'segments', id))
-}
-
-// ─── 一括タグ設定 ────────────────────────────────
-
-const openTagAssign = (seg: any) => {
-  tagAssignModal.value = {
-    show: true, segment: seg, selectedTags: [], customTag: '',
-    action: 'add', running: false, result: null,
-  }
-}
-const closeTagAssign = () => { tagAssignModal.value.show = false }
-
-const toggleAssignTag = (name: string) => {
-  const idx = tagAssignModal.value.selectedTags.indexOf(name)
-  if (idx >= 0) tagAssignModal.value.selectedTags.splice(idx, 1)
-  else tagAssignModal.value.selectedTags.push(name)
-}
-
-const addCustomAssignTag = () => {
-  const t = tagAssignModal.value.customTag.trim()
-  if (t && !tagAssignModal.value.selectedTags.includes(t)) tagAssignModal.value.selectedTags.push(t)
-  tagAssignModal.value.customTag = ''
-}
-
-const executeTagAssign = async () => {
-  const modal = tagAssignModal.value
-  if (!modal.selectedTags.length || modal.running) return
-  modal.running = true
-  modal.result = null
-  try {
-    const snap = await getDocs(collection(db, 'users'))
-    const conditions = modal.segment.conditions ?? {}
-    const userIds: string[] = []
-
-    snap.docs.forEach(d => {
-      if (matchSegment(d.data(), conditions)) {
-        userIds.push(d.id)
-      }
-    })
-
-    if (!userIds.length) {
-      modal.result = { ok: false, message: '対象ユーザーが見つかりませんでした' }
-      return
-    }
-
-    const op = modal.action === 'add' ? arrayUnion(...modal.selectedTags) : arrayRemove(...modal.selectedTags)
-    await Promise.all(userIds.map(uid => updateDoc(doc(db, 'users', uid), { tags: op })))
-
-    // カウント更新
-    const count = await calcUserCount(modal.segment)
-    modal.segment.userCount = count
-    await updateDoc(doc(db, 'segments', modal.segment.id), { userCount: count })
-
-    const verb = modal.action === 'add' ? '付与' : '削除'
-    modal.result = { ok: true, message: `${userIds.length}人のユーザーにタグを${verb}しました：${modal.selectedTags.join('、')}` }
-  } catch (e: any) {
-    modal.result = { ok: false, message: 'エラー: ' + e.message }
-  } finally {
-    modal.running = false
-  }
 }
 
 // ─── 初期データ取得 ──────────────────────────────
