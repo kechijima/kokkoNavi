@@ -17,18 +17,24 @@ export const onNewMessage = functions
     const { userId } = context.params
 
     try {
-      // ユーザー情報の「最後のメッセージ」を更新
-      await db.collection('users').doc(userId).update({
-        lastMessage: msg.text,
-        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-      })
+      // ユーザー情報の「最後のメッセージ」を更新（textがある場合のみ）
+      if (msg.text != null) {
+        await db.collection('users').doc(userId).update({
+          lastMessage: String(msg.text),
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        })
+      }
 
       // 管理者からのメッセージであれば LINE に送信
       if (msg.type === 'admin') {
+        if (!msg.text) {
+          console.warn(`Admin message ${snap.id} has no text, skipping LINE push`)
+          return
+        }
         const client = getLineClient()
         await client.pushMessage({
           to: userId,
-          messages: [{ type: 'text', text: msg.text }]
+          messages: [{ type: 'text', text: String(msg.text) }]
         })
         await snap.ref.update({ sent: true, sentAt: new Date() })
       }

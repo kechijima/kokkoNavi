@@ -91,6 +91,11 @@
               <p class="whitespace-pre-wrap">{{ msg.text }}</p>
               <p :class="['text-xs mt-1', msg.type === 'admin' ? 'text-peach-100' : 'text-gray-400']">
                 {{ formatTime(msg.timestamp) }}
+                <span v-if="msg.type === 'admin'">
+                  <span v-if="msg.sent === true">✓ LINE送信済</span>
+                  <span v-else-if="msg.sent === false" class="text-red-300" :title="msg.error">✗ LINE送信失敗</span>
+                  <span v-else>送信中...</span>
+                </span>
               </p>
             </div>
           </div>
