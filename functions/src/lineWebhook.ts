@@ -65,12 +65,25 @@ async function sendNextOnboardingQuestion(client: messagingApi.MessagingApiClien
 // ─── 支援情報カテゴリ検索 ────────────────────────
 
 async function handleCategorySearch(event: PostbackEvent, client: messagingApi.MessagingApiClient, category: string) {
+  const lineUserId = event.source.userId
+  const userTags = lineUserId
+    ? ((await db.collection('users').doc(lineUserId).get()).data()?.tags ?? [])
+    : []
+  const userTagSet = new Set((Array.isArray(userTags) ? userTags : []).filter((tag): tag is string => typeof tag === 'string' && tag.length > 0))
+
   const snap = await db.collection('contents')
     .where('category', '==', category)
     .where('status', '==', 'published')
-    .limit(5).get()
+    .limit(50).get()
 
-  if (snap.empty) {
+  const matchedDocs = snap.docs
+    .filter(d => {
+      const contentTags = d.data().tags
+      return Array.isArray(contentTags) && contentTags.some(tag => userTagSet.has(tag))
+    })
+    .slice(0, 5)
+
+  if (!matchedDocs.length) {
     await client.replyMessage({
       replyToken: event.replyToken,
       messages: [{
@@ -83,7 +96,7 @@ async function handleCategorySearch(event: PostbackEvent, client: messagingApi.M
 
   const BASE_URL = 'https://kokkonavi.web.app'
 
-  const bubbles: any[] = snap.docs.map(d => {
+  const bubbles: any[] = matchedDocs.map(d => {
     const c = d.data()
     // linkUrl未設定または暫定値の場合は公開ページURLを自動生成
     const linkUrl = (c.linkUrl && c.linkUrl !== '__pending__')
