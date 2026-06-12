@@ -344,12 +344,18 @@ async function handlePostback(event: PostbackEvent, client: messagingApi.Messagi
         replyToken: event.replyToken,
         messages: [{
           type: 'text',
-          text: '🔍 どのカテゴリの情報をお探しですか？\n以下から選んでください👇',
+          text: '🔍 どのカテゴリの情報をお探しですか？\n以下から選んでください👇\n（「すべて見る」はあなたの設定に関係なく全コンテンツから探せます）',
           quickReply: {
-            items: catNames.slice(0, 13).map(cat => ({
-              type: 'action' as const,
-              action: { type: 'postback' as const, label: cat.length > 20 ? cat.substring(0, 20) : cat, data: `action=search_cat&cat=${cat}`, displayText: cat },
-            })),
+            items: [
+              ...catNames.slice(0, 12).map(cat => ({
+                type: 'action' as const,
+                action: { type: 'postback' as const, label: cat.length > 20 ? cat.substring(0, 20) : cat, data: `action=search_cat&cat=${cat}`, displayText: cat },
+              })),
+              {
+                type: 'action' as const,
+                action: { type: 'postback' as const, label: '🔍 すべて見る', data: 'action=search_more', displayText: 'すべて見る' },
+              },
+            ],
           },
         } as TextMessage]
       })
@@ -361,28 +367,31 @@ async function handlePostback(event: PostbackEvent, client: messagingApi.Messagi
       const cat = params.get('cat') ?? ''
       if (cat === 'イベント') {
         await handleEventSearch(event, client)
-      } else if (cat === 'その他') {
-        // その他 → コンテンツ種別管理の全種別から検索（タグ絞り込みなし）
-        const catSnap = await db.collection('categories').orderBy('order', 'asc').get()
-        const catNames: string[] = catSnap.empty
-          ? ['子育て支援', '住居支援', '就労支援', '経済支援', '法律・権利']
-          : catSnap.docs.map(d => d.data().name as string).filter(name => name !== 'その他')
-        await client.replyMessage({
-          replyToken: event.replyToken,
-          messages: [{
-            type: 'text',
-            text: '🔍 すべてのコンテンツから探します。\n種別を選んでください👇',
-            quickReply: {
-              items: catNames.slice(0, 13).map(c => ({
-                type: 'action' as const,
-                action: { type: 'postback' as const, label: c.length > 20 ? c.substring(0, 20) : c, data: `action=search_all&cat=${c}`, displayText: c },
-              })),
-            },
-          } as TextMessage]
-        })
       } else {
         await handleCategorySearch(event, client, cat)
       }
+      break
+    }
+
+    // すべて見る → 種別一覧を提示（タグ絞り込みなし検索へ）
+    case 'search_more': {
+      const catSnap = await db.collection('categories').orderBy('order', 'asc').get()
+      const catNames: string[] = catSnap.empty
+        ? ['子育て支援', '住居支援', '就労支援', '経済支援', '法律・権利', 'その他']
+        : catSnap.docs.map(d => d.data().name as string)
+      await client.replyMessage({
+        replyToken: event.replyToken,
+        messages: [{
+          type: 'text',
+          text: '🔍 すべてのコンテンツから探します。\n種別を選んでください👇',
+          quickReply: {
+            items: catNames.slice(0, 13).map(c => ({
+              type: 'action' as const,
+              action: { type: 'postback' as const, label: c.length > 20 ? c.substring(0, 20) : c, data: `action=search_all&cat=${c}`, displayText: c },
+            })),
+          },
+        } as TextMessage]
+      })
       break
     }
 

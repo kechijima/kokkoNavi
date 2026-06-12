@@ -6,7 +6,7 @@
     </div>
 
     <p class="text-sm text-gray-500">
-      コンテンツ管理・LINE配信のカテゴリ選択肢として使われます。順序を変更するには「順序」を編集してください。
+      コンテンツ管理・LINE配信のカテゴリ選択肢として使われます。▲▼ボタンで表示順を変更できます。
     </p>
 
     <!-- カテゴリ一覧 -->
@@ -15,11 +15,24 @@
         カテゴリがありません。「＋ 追加」から作成してください。
       </div>
       <div
-        v-for="cat in categories"
+        v-for="(cat, index) in categories"
         :key="cat.id"
         class="flex items-center gap-3 py-3 px-1"
       >
-        <span class="w-8 text-center text-xs text-gray-400 font-mono">{{ cat.order }}</span>
+        <div class="flex flex-col gap-0.5">
+          <button
+            @click="move(index, -1)"
+            :disabled="index === 0 || reordering"
+            class="text-xs px-1.5 py-0.5 rounded text-gray-400 hover:text-peach-600 hover:bg-peach-50 disabled:opacity-25 disabled:hover:bg-transparent"
+            title="上へ"
+          >▲</button>
+          <button
+            @click="move(index, 1)"
+            :disabled="index === categories.length - 1 || reordering"
+            class="text-xs px-1.5 py-0.5 rounded text-gray-400 hover:text-peach-600 hover:bg-peach-50 disabled:opacity-25 disabled:hover:bg-transparent"
+            title="下へ"
+          >▼</button>
+        </div>
         <span class="flex-1 text-sm font-medium text-gray-800">{{ cat.name }}</span>
         <div class="flex gap-2">
           <button @click="openEdit(cat)" class="text-xs text-peach-500 hover:text-peach-700 px-2 py-1 rounded hover:bg-peach-50">編集</button>
@@ -57,7 +70,7 @@
 
 <script setup lang="ts">
 import {
-  collection, getDocs, addDoc, updateDoc, deleteDoc, doc, orderBy, query, serverTimestamp,
+  collection, getDocs, addDoc, updateDoc, deleteDoc, doc, orderBy, query, serverTimestamp, writeBatch,
 } from 'firebase/firestore'
 
 interface Category {
@@ -125,6 +138,27 @@ const save = async () => {
     closeModal()
   } finally {
     saving.value = false
+  }
+}
+
+const reordering = ref(false)
+
+// 隣と入れ替えて order を0,1,2...に振り直して保存
+const move = async (index: number, direction: -1 | 1) => {
+  const target = index + direction
+  if (target < 0 || target >= categories.value.length) return
+  reordering.value = true
+  try {
+    const reordered = [...categories.value]
+    ;[reordered[index], reordered[target]] = [reordered[target], reordered[index]]
+    const batch = writeBatch(db)
+    reordered.forEach((cat, i) => {
+      batch.update(doc(db, 'categories', cat.id), { order: i, updatedAt: serverTimestamp() })
+    })
+    await batch.commit()
+    await loadCategories()
+  } finally {
+    reordering.value = false
   }
 }
 

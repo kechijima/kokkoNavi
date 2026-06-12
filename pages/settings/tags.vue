@@ -31,7 +31,18 @@
             <span v-if="tag.description" class="text-sm text-gray-500">{{ tag.description }}</span>
           </div>
           <div class="flex items-center gap-2">
-            <span class="text-xs text-gray-400">{{ tag.userCount ?? 0 }}人に付与</span>
+            <button
+              @click="showUsers(tag)"
+              :class="[
+                'text-xs px-2 py-1 rounded-lg transition-colors',
+                userCountFor(tag.name) > 0
+                  ? 'text-peach-600 bg-peach-50 hover:bg-peach-100 cursor-pointer'
+                  : 'text-gray-400 cursor-default'
+              ]"
+              :disabled="userCountFor(tag.name) === 0"
+            >
+              {{ userCountFor(tag.name) }}人に付与 {{ userCountFor(tag.name) > 0 ? '▸' : '' }}
+            </button>
             <button
               @click="startEdit(tag)"
               class="btn-ghost text-xs px-2 py-1 text-gray-500 hover:text-gray-700"
@@ -45,6 +56,34 @@
               削除
             </button>
           </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- タグ付与ユーザー一覧モーダル -->
+    <div v-if="viewingTag" class="fixed inset-0 bg-black/30 flex items-center justify-center z-50 p-4" @click.self="viewingTag = null">
+      <div class="card w-full max-w-sm max-h-[70vh] flex flex-col">
+        <div class="flex items-center justify-between mb-3">
+          <h3 class="font-semibold text-gray-800">
+            <span class="badge badge-peach text-sm px-3 py-1 mr-2">{{ viewingTag.name }}</span>
+            {{ taggedUsers.length }}人
+          </h3>
+          <button @click="viewingTag = null" class="btn-ghost px-3 py-1.5 text-sm">✕</button>
+        </div>
+        <div class="flex-1 overflow-y-auto divide-y divide-gray-50">
+          <NuxtLink
+            v-for="user in taggedUsers"
+            :key="user.id"
+            :to="`/users/${user.id}`"
+            class="flex items-center gap-3 py-2.5 hover:bg-peach-50 rounded-lg px-2 transition-colors"
+          >
+            <img v-if="user.pictureUrl" :src="user.pictureUrl" class="w-8 h-8 rounded-full object-cover" alt="" />
+            <div v-else class="w-8 h-8 bg-peach-100 rounded-full flex items-center justify-center">
+              <span class="text-peach-600 text-xs font-medium">{{ user.displayName?.charAt(0) }}</span>
+            </div>
+            <span class="text-sm text-gray-800 flex-1 truncate">{{ user.displayName }}</span>
+            <span class="text-xs text-gray-400">詳細 →</span>
+          </NuxtLink>
         </div>
       </div>
     </div>
@@ -94,10 +133,25 @@ import {
 const { db } = useFirebase()
 
 const tags = ref<any[]>([])
+const users = ref<any[]>([])
 const showForm = ref(false)
 const saving = ref(false)
 const editingTag = ref<any>(null)
+const viewingTag = ref<any>(null)
 const form = ref({ name: '', description: '' })
+
+// タグ名 → 付与ユーザー数（usersコレクションからリアルタイム集計）
+const userCountFor = (tagName: string) =>
+  users.value.filter(u => Array.isArray(u.tags) && u.tags.includes(tagName)).length
+
+const taggedUsers = computed(() => {
+  if (!viewingTag.value) return []
+  return users.value.filter(u => Array.isArray(u.tags) && u.tags.includes(viewingTag.value.name))
+})
+
+const showUsers = (tag: any) => {
+  if (userCountFor(tag.name) > 0) viewingTag.value = tag
+}
 
 const startEdit = (tag: any) => {
   editingTag.value = tag
@@ -144,6 +198,9 @@ const deleteTag = async (tag: any) => {
 onMounted(() => {
   onSnapshot(query(collection(db, 'tags'), orderBy('createdAt', 'asc')), snap => {
     tags.value = snap.docs.map(d => ({ id: d.id, ...d.data() }))
+  })
+  onSnapshot(collection(db, 'users'), snap => {
+    users.value = snap.docs.map(d => ({ id: d.id, ...d.data() }))
   })
 })
 </script>
