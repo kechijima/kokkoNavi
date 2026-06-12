@@ -39,7 +39,7 @@
         <img
           v-if="content.imageUrl"
           :src="content.imageUrl"
-          class="w-full rounded-xl object-cover max-h-52"
+          class="w-full rounded-xl object-cover max-h-64"
           alt=""
         />
 
@@ -113,5 +113,12 @@ onMounted(async () => {
 .rich-body :deep(a) {
   color: #FF8C61;
   text-decoration: underline;
+}
+.rich-body :deep(img) {
+  max-width: 100%;
+  max-height: 360px;
+  border-radius: 0.75rem;
+  margin: 0.75em auto;
+  display: block;
 }
 </style>

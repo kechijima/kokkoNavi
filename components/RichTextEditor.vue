@@ -12,7 +12,11 @@
       <button type="button" title="番号付きリスト" @mousedown.prevent @click="exec('insertOrderedList')" class="toolbar-btn">1. リスト</button>
       <span class="w-px h-5 bg-gray-200 mx-1" />
       <button type="button" title="リンク" @mousedown.prevent @click="addLink" class="toolbar-btn">🔗 リンク</button>
+      <button type="button" title="画像を挿入" @mousedown.prevent @click="pickImage" class="toolbar-btn" :disabled="uploading">
+        {{ uploading ? '⏳ アップロード中...' : '🖼 画像' }}
+      </button>
       <button type="button" title="書式を解除" @mousedown.prevent @click="clearFormat" class="toolbar-btn text-gray-400">書式解除</button>
+      <input ref="fileInput" type="file" accept="image/*" class="hidden" @change="onImageSelected" />
     </div>
 
     <!-- 編集エリア -->
@@ -28,6 +32,8 @@
 </template>
 
 <script setup lang="ts">
+import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage'
+
 const props = defineProps<{
   modelValue: string
   placeholder?: string
@@ -35,6 +41,9 @@ const props = defineProps<{
 const emit = defineEmits<{ (e: 'update:modelValue', value: string): void }>()
 
 const editor = ref<HTMLElement>()
+const fileInput = ref<HTMLInputElement>()
+const uploading = ref(false)
+const { storage } = useFirebase()
 
 const exec = (command: string, value?: string) => {
   editor.value?.focus()
@@ -45,6 +54,26 @@ const exec = (command: string, value?: string) => {
 const addLink = () => {
   const url = window.prompt('リンク先のURLを入力してください', 'https://')
   if (url && url !== 'https://') exec('createLink', url)
+}
+
+const pickImage = () => fileInput.value?.click()
+
+const onImageSelected = async (e: Event) => {
+  const file = (e.target as HTMLInputElement).files?.[0]
+  if (!file) return
+  uploading.value = true
+  try {
+    const path = `contents/${Date.now()}_${file.name}`
+    const sRef = storageRef(storage, path)
+    await uploadBytes(sRef, file)
+    const url = await getDownloadURL(sRef)
+    exec('insertImage', url)
+  } catch (err: any) {
+    alert('画像のアップロードに失敗しました: ' + (err?.message ?? String(err)))
+  } finally {
+    uploading.value = false
+    if (fileInput.value) fileInput.value.value = ''
+  }
 }
 
 const clearFormat = () => {
@@ -70,13 +99,12 @@ onMounted(() => {
 
 <style scoped>
 .toolbar-btn {
-  @apply text-xs px-2.5 py-1.5 rounded-lg text-gray-600 hover:bg-peach-100 hover:text-peach-600 transition-colors;
+  @apply text-xs px-2.5 py-1.5 rounded-lg text-gray-600 hover:bg-peach-100 hover:text-peach-600 transition-colors disabled:opacity-50;
 }
 .rich-editor-body:empty::before {
   content: attr(data-placeholder);
   color: #9ca3af;
 }
-.rich-editor-body :deep(h3),
 .rich-editor-body h3 {
   font-size: 1.05rem;
   font-weight: 700;
@@ -93,5 +121,13 @@ onMounted(() => {
 .rich-editor-body a {
   color: #FF8C61;
   text-decoration: underline;
+}
+.rich-editor-body :deep(img),
+.rich-editor-body img {
+  max-width: 100%;
+  max-height: 320px;
+  border-radius: 0.75rem;
+  margin: 0.5em 0;
+  display: block;
 }
 </style>

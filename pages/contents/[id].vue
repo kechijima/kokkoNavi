@@ -36,10 +36,16 @@
       </div>
 
       <div>
-        <label class="block text-sm font-medium text-gray-700 mb-1.5">画像URL</label>
-        <input v-model="form.imageUrl" type="url" class="input" placeholder="https://..." />
-        <div v-if="form.imageUrl" class="mt-2 h-32 rounded-xl overflow-hidden bg-gray-100">
-          <img :src="form.imageUrl" class="w-full h-full object-cover" alt="" />
+        <label class="block text-sm font-medium text-gray-700 mb-1.5">サムネイル画像</label>
+        <div class="flex gap-2">
+          <input v-model="form.imageUrl" type="url" class="input flex-1" placeholder="https://... または右のボタンからアップロード" />
+          <button type="button" @click="thumbInput?.click()" class="btn-secondary whitespace-nowrap" :disabled="uploadingThumb">
+            {{ uploadingThumb ? 'アップロード中...' : '📁 アップロード' }}
+          </button>
+          <input ref="thumbInput" type="file" accept="image/*" class="hidden" @change="uploadThumbnail" />
+        </div>
+        <div v-if="form.imageUrl" class="mt-2 rounded-xl overflow-hidden bg-gray-100 inline-block">
+          <img :src="form.imageUrl" class="max-h-40 max-w-full object-contain rounded-xl" alt="" />
         </div>
       </div>
 
@@ -82,7 +88,36 @@
         <button @click="save" class="btn-primary" :disabled="saving">
           {{ saving ? '保存中...' : (isNew ? '追加する' : '保存する') }}
         </button>
+        <button @click="showPreview = true" class="btn-secondary">👀 プレビュー</button>
         <NuxtLink to="/contents" class="btn-secondary">キャンセル</NuxtLink>
+      </div>
+    </div>
+
+    <!-- プレビューモーダル -->
+    <div v-if="showPreview" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40" @click.self="showPreview = false">
+      <div class="bg-warm-50 rounded-2xl w-full max-w-xl max-h-[85vh] overflow-y-auto shadow-xl">
+        <div class="sticky top-0 flex items-center justify-between px-5 py-3 bg-white border-b border-gray-100 rounded-t-2xl">
+          <p class="text-sm font-semibold text-gray-700">📱 公開ページプレビュー</p>
+          <button @click="showPreview = false" class="btn-ghost px-3 py-1.5 text-sm">✕ 閉じる</button>
+        </div>
+        <div class="px-5 py-6 space-y-4">
+          <p class="text-xs font-medium text-peach-500">📂 {{ form.category || 'カテゴリ未選択' }}</p>
+          <h1 class="text-xl font-bold text-gray-800 leading-snug">{{ form.title || '（タイトル未入力）' }}</h1>
+          <img
+            v-if="form.imageUrl"
+            :src="form.imageUrl"
+            class="w-full rounded-xl object-cover max-h-64"
+            alt=""
+          />
+          <div class="bg-white rounded-xl p-5 shadow-sm text-sm text-gray-700 leading-relaxed rich-body" v-html="form.body || '<span class=\'text-gray-400\'>（本文未入力）</span>'" />
+          <div v-if="form.tags.length" class="flex flex-wrap gap-2 pt-2">
+            <span
+              v-for="tag in form.tags"
+              :key="tag"
+              class="text-xs bg-peach-50 text-peach-600 px-3 py-1 rounded-full border border-peach-100"
+            >#{{ tag }}</span>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -93,17 +128,36 @@ import {
   doc, getDoc, addDoc, updateDoc, collection, getDocs,
   serverTimestamp, orderBy, query,
 } from 'firebase/firestore'
+import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage'
 
 const route = useRoute()
 const router = useRouter()
-const { db } = useFirebase()
-const config = useRuntimeConfig()
+const { db, storage } = useFirebase()
 
 const id = route.params.id as string
 const isNew = id === 'new'
 const saving = ref(false)
 const masterTags = ref<{ id: string; name: string }[]>([])
 const categories = ref<string[]>([])
+const showPreview = ref(false)
+const uploadingThumb = ref(false)
+const thumbInput = ref<HTMLInputElement>()
+
+const uploadThumbnail = async (e: Event) => {
+  const file = (e.target as HTMLInputElement).files?.[0]
+  if (!file) return
+  uploadingThumb.value = true
+  try {
+    const sRef = storageRef(storage, `contents/thumbnails/${Date.now()}_${file.name}`)
+    await uploadBytes(sRef, file)
+    form.value.imageUrl = await getDownloadURL(sRef)
+  } catch (err: any) {
+    alert('画像のアップロードに失敗しました: ' + (err?.message ?? String(err)))
+  } finally {
+    uploadingThumb.value = false
+    if (thumbInput.value) thumbInput.value.value = ''
+  }
+}
 
 const form = ref({
   title: '',
@@ -186,3 +240,33 @@ onMounted(async () => {
   }
 })
 </script>
+
+<style scoped>
+.rich-body :deep(h3) {
+  font-size: 1.05rem;
+  font-weight: 700;
+  margin: 0.75em 0 0.35em;
+  color: #333;
+}
+.rich-body :deep(ul) {
+  list-style: disc;
+  padding-left: 1.5em;
+  margin: 0.5em 0;
+}
+.rich-body :deep(ol) {
+  list-style: decimal;
+  padding-left: 1.5em;
+  margin: 0.5em 0;
+}
+.rich-body :deep(a) {
+  color: #FF8C61;
+  text-decoration: underline;
+}
+.rich-body :deep(img) {
+  max-width: 100%;
+  max-height: 360px;
+  border-radius: 0.75rem;
+  margin: 0.75em auto;
+  display: block;
+}
+</style>
