@@ -96,11 +96,22 @@
     <!-- プレビューモーダル -->
     <div v-if="showPreview" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40" @click.self="showPreview = false">
       <div class="bg-warm-50 rounded-2xl w-full max-w-xl max-h-[85vh] overflow-y-auto shadow-xl">
-        <div class="sticky top-0 flex items-center justify-between px-5 py-3 bg-white border-b border-gray-100 rounded-t-2xl">
-          <p class="text-sm font-semibold text-gray-700">📱 公開ページプレビュー</p>
+        <div class="sticky top-0 flex items-center justify-between px-5 py-3 bg-white border-b border-gray-100 rounded-t-2xl z-10">
+          <div class="flex gap-1">
+            <button
+              @click="previewMode = 'page'"
+              :class="['text-sm px-3 py-1.5 rounded-lg font-medium transition-colors', previewMode === 'page' ? 'bg-peach-500 text-white' : 'text-gray-500 hover:bg-peach-50']"
+            >🌐 公開ページ</button>
+            <button
+              @click="previewMode = 'line'"
+              :class="['text-sm px-3 py-1.5 rounded-lg font-medium transition-colors', previewMode === 'line' ? 'bg-peach-500 text-white' : 'text-gray-500 hover:bg-peach-50']"
+            >💬 LINE表示</button>
+          </div>
           <button @click="showPreview = false" class="btn-ghost px-3 py-1.5 text-sm">✕ 閉じる</button>
         </div>
-        <div class="px-5 py-6 space-y-4">
+
+        <!-- 公開ページプレビュー -->
+        <div v-if="previewMode === 'page'" class="px-5 py-6 space-y-4">
           <p class="text-xs font-medium text-peach-500">📂 {{ form.category || 'カテゴリ未選択' }}</p>
           <h1 class="text-xl font-bold text-gray-800 leading-snug">{{ form.title || '（タイトル未入力）' }}</h1>
           <img
@@ -116,6 +127,25 @@
               :key="tag"
               class="text-xs bg-peach-50 text-peach-600 px-3 py-1 rounded-full border border-peach-100"
             >#{{ tag }}</span>
+          </div>
+        </div>
+
+        <!-- LINEカードプレビュー（支援情報検索で送られるカード） -->
+        <div v-else class="px-5 py-6">
+          <p class="text-xs text-gray-500 mb-3">LINEで「支援情報を探す」からこのコンテンツが届いたときの見え方です</p>
+          <div class="bg-[#8cabd9] rounded-xl p-4 flex justify-center">
+            <div class="bg-white rounded-2xl overflow-hidden shadow-md w-60">
+              <div class="px-4 pt-4 pb-3">
+                <p class="text-xs text-peach-500">📂 {{ form.category || 'カテゴリ未選択' }}</p>
+                <p class="text-sm font-bold text-gray-800 mt-1.5 leading-snug">{{ form.title || '（タイトル未入力）' }}</p>
+                <p class="text-xs text-gray-500 mt-1.5 leading-relaxed">{{ lineBodyPreview }}</p>
+              </div>
+              <div class="px-3 pb-3">
+                <div class="bg-peach-500 text-white text-sm font-medium text-center py-2.5 rounded-lg">
+                  全文を読む 📖
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -140,6 +170,14 @@ const saving = ref(false)
 const masterTags = ref<{ id: string; name: string }[]>([])
 const categories = ref<string[]>([])
 const showPreview = ref(false)
+const previewMode = ref<'page' | 'line'>('page')
+
+// LINEカードに表示される本文プレビュー（HTMLタグ除去・60文字）
+const lineBodyPreview = computed(() => {
+  const text = form.value.body.replace(/<[^>]*>/g, '').trim()
+  if (!text) return '（本文未入力）'
+  return text.substring(0, 60) + '…'
+})
 const uploadingThumb = ref(false)
 const thumbInput = ref<HTMLInputElement>()
 

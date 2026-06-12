@@ -45,6 +45,20 @@
           class="border border-gray-200 rounded-xl p-4 bg-warm-50"
         >
           <div class="flex items-center gap-2 mb-3">
+            <div class="flex flex-col flex-shrink-0">
+              <button
+                @click="moveStep(index, -1)"
+                :disabled="index === 0"
+                class="text-[10px] leading-none px-1 py-0.5 rounded text-gray-400 hover:text-peach-600 hover:bg-peach-50 disabled:opacity-25 disabled:hover:bg-transparent"
+                title="上へ"
+              >▲</button>
+              <button
+                @click="moveStep(index, 1)"
+                :disabled="index === flow.steps.length - 1"
+                class="text-[10px] leading-none px-1 py-0.5 rounded text-gray-400 hover:text-peach-600 hover:bg-peach-50 disabled:opacity-25 disabled:hover:bg-transparent"
+                title="下へ"
+              >▼</button>
+            </div>
             <span class="w-6 h-6 bg-peach-100 text-peach-600 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0">
               {{ index + 1 }}
             </span>
@@ -244,6 +258,14 @@ const addStep = (type: 'single' | 'multi' | 'text' | 'number') => {
 
 const removeStep = (index: number) => {
   flow.value.steps.splice(index, 1)
+}
+
+// 質問を上下に移動
+const moveStep = (index: number, direction: -1 | 1) => {
+  const target = index + direction
+  if (target < 0 || target >= flow.value.steps.length) return
+  const steps = flow.value.steps
+  ;[steps[index], steps[target]] = [steps[target], steps[index]]
 }
 
 const addOption = (step: any) => {
