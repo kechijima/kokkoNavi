@@ -64,9 +64,9 @@ async function sendNextOnboardingQuestion(client: messagingApi.MessagingApiClien
 
 // ─── 支援情報カテゴリ検索 ────────────────────────
 
-async function handleCategorySearch(event: PostbackEvent, client: messagingApi.MessagingApiClient, category: string) {
+async function handleCategorySearch(event: PostbackEvent, client: messagingApi.MessagingApiClient, category: string, filterByTags = true) {
   const lineUserId = event.source.userId
-  const userTags = lineUserId
+  const userTags = filterByTags && lineUserId
     ? ((await db.collection('users').doc(lineUserId).get()).data()?.tags ?? [])
     : []
   const userTagSet = new Set((Array.isArray(userTags) ? userTags : []).filter((tag): tag is string => typeof tag === 'string' && tag.length > 0))
@@ -78,7 +78,7 @@ async function handleCategorySearch(event: PostbackEvent, client: messagingApi.M
 
   const matchedDocs = snap.docs
     .filter(d => {
-      if (userTagSet.size === 0) return true
+      if (!filterByTags || userTagSet.size === 0) return true
       const contentTags = d.data().tags
       return !Array.isArray(contentTags) || contentTags.length === 0 || contentTags.some(tag => userTagSet.has(tag))
     })
@@ -361,8 +361,38 @@ async function handlePostback(event: PostbackEvent, client: messagingApi.Messagi
       const cat = params.get('cat') ?? ''
       if (cat === 'イベント') {
         await handleEventSearch(event, client)
+      } else if (cat === 'その他') {
+        // その他 → コンテンツ種別管理の全種別から検索（タグ絞り込みなし）
+        const catSnap = await db.collection('categories').orderBy('order', 'asc').get()
+        const catNames: string[] = catSnap.empty
+          ? ['子育て支援', '住居支援', '就労支援', '経済支援', '法律・権利']
+          : catSnap.docs.map(d => d.data().name as string).filter(name => name !== 'その他')
+        await client.replyMessage({
+          replyToken: event.replyToken,
+          messages: [{
+            type: 'text',
+            text: '🔍 すべてのコンテンツから探します。\n種別を選んでください👇',
+            quickReply: {
+              items: catNames.slice(0, 13).map(c => ({
+                type: 'action' as const,
+                action: { type: 'postback' as const, label: c.length > 20 ? c.substring(0, 20) : c, data: `action=search_all&cat=${c}`, displayText: c },
+              })),
+            },
+          } as TextMessage]
+        })
       } else {
         await handleCategorySearch(event, client, cat)
+      }
+      break
+    }
+
+    // その他からの種別確定 → タグ絞り込みなしで記事一覧
+    case 'search_all': {
+      const cat = params.get('cat') ?? ''
+      if (cat === 'イベント') {
+        await handleEventSearch(event, client)
+      } else {
+        await handleCategorySearch(event, client, cat, false)
       }
       break
     }
