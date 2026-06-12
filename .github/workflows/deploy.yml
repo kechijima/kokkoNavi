@@ -60,3 +60,25 @@ jobs:
         run: npx firebase-tools deploy --project kokkonavi --non-interactive --force $FIREBASE_DEPLOY_ARGS
         env:
           FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
+
+      # ── リリース完了メール通知 ─────────────────────────────
+      - name: Send release notification email
+        if: success()
+        continue-on-error: true
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: smtp.gmail.com
+          server_port: 465
+          username: ${{ secrets.MAIL_USERNAME }}
+          password: ${{ secrets.MAIL_PASSWORD }}
+          subject: '✅ こっこナビ リリース完了 (${{ github.sha }})'
+          to: ya0ma5gu2chi992501@gmail.com
+          from: こっこナビ デプロイ通知
+          body: |
+            こっこナビのFirebaseへのリリースが完了しました。
+
+            コミット: ${{ github.event.head_commit.message }}
+            実行者: ${{ github.actor }}
+            詳細: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+            管理画面: https://kokkonavi.web.app
