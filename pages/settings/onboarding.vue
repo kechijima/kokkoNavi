@@ -83,6 +83,20 @@
             <p class="text-xs font-medium text-gray-500 mb-2">選択肢</p>
             <div class="space-y-2">
               <div v-for="(opt, oi) in step.options ?? []" :key="oi" class="flex items-center gap-2">
+                <div class="flex flex-col flex-shrink-0">
+                  <button
+                    @click="moveOption(step, oi, -1)"
+                    :disabled="oi === 0"
+                    class="text-[10px] leading-none px-1 py-0.5 rounded text-gray-400 hover:text-peach-600 hover:bg-peach-50 disabled:opacity-25 disabled:hover:bg-transparent"
+                    title="上へ"
+                  >▲</button>
+                  <button
+                    @click="moveOption(step, oi, 1)"
+                    :disabled="oi === (step.options?.length ?? 0) - 1"
+                    class="text-[10px] leading-none px-1 py-0.5 rounded text-gray-400 hover:text-peach-600 hover:bg-peach-50 disabled:opacity-25 disabled:hover:bg-transparent"
+                    title="下へ"
+                  >▼</button>
+                </div>
                 <input
                   :value="opt"
                   type="text"
@@ -243,6 +257,13 @@ const removeOption = (step: any, index: number) => {
 
 const updateOption = (step: any, index: number, value: string) => {
   if (step.options) step.options[index] = value
+}
+
+// 選択肢を上下に移動（タグマッピングは選択肢テキストに紐づくため影響なし）
+const moveOption = (step: any, index: number, direction: -1 | 1) => {
+  const target = index + direction
+  if (!step.options || target < 0 || target >= step.options.length) return
+  ;[step.options[index], step.options[target]] = [step.options[target], step.options[index]]
 }
 
 const updateTagMapping = (step: any, opt: string, tag: string) => {
