@@ -114,7 +114,7 @@ async function handleCategorySearch(event: PostbackEvent, client: messagingApi.M
         contents: [
           { type: 'text', text: `📂 ${c.category}`, size: 'xs', color: '#FF8C61' },
           { type: 'text', text: c.title, weight: 'bold', size: 'sm', wrap: true, color: '#333333', margin: 'sm' },
-          { type: 'text', text: (c.body ?? '').substring(0, 60) + '…', size: 'xs', wrap: true, color: '#666666', margin: 'sm' },
+          { type: 'text', text: String(c.body ?? '').replace(/<[^>]*>/g, '').substring(0, 60) + '…', size: 'xs', wrap: true, color: '#666666', margin: 'sm' },
         ],
       },
       footer: {

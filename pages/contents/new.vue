@@ -30,16 +30,7 @@
 
       <div>
         <label class="block text-sm font-medium text-gray-700 mb-1.5">本文 <span class="text-red-400">*</span></label>
-        <textarea v-model="form.body" class="input resize-none" rows="8" placeholder="内容を入力..." />
-      </div>
-
-      <!-- リンクURL -->
-      <div>
-        <label class="block text-sm font-medium text-gray-700 mb-1.5">リンクURL</label>
-        <div class="flex items-center gap-2 p-3 bg-peach-50 rounded-xl border border-peach-100 mb-2">
-          <span class="text-xs text-peach-500">🔗 空欄のまま保存すると、公開ページのURLが自動設定されます</span>
-        </div>
-        <input v-model="form.linkUrl" type="url" class="input" placeholder="https://... （空欄で自動生成）" />
+        <RichTextEditor v-model="form.body" placeholder="内容を入力..." />
       </div>
 
       <div>
@@ -123,7 +114,8 @@ const removeTag = (tag: string) => {
 }
 
 const save = async () => {
-  if (!form.value.title.trim() || !form.value.body.trim()) {
+  const bodyText = form.value.body.replace(/<[^>]*>/g, '').trim()
+  if (!form.value.title.trim() || !bodyText) {
     alert('タイトルと本文は必須です')
     return
   }

@@ -43,7 +43,12 @@
           alt=""
         />
 
-        <div class="bg-white rounded-xl p-5 shadow-sm text-sm text-gray-700 leading-relaxed whitespace-pre-line">
+        <div
+          v-if="isHtmlBody"
+          class="bg-white rounded-xl p-5 shadow-sm text-sm text-gray-700 leading-relaxed rich-body"
+          v-html="content.body"
+        />
+        <div v-else class="bg-white rounded-xl p-5 shadow-sm text-sm text-gray-700 leading-relaxed whitespace-pre-line">
           {{ content.body }}
         </div>
 
@@ -71,6 +76,9 @@ const id = route.params.id as string
 const loading = ref(true)
 const content = ref<any>(null)
 
+// リッチエディタで作成されたHTML本文かどうか（旧プレーンテキスト記事との互換）
+const isHtmlBody = computed(() => /<[a-z][\s\S]*>/i.test(content.value?.body ?? ''))
+
 onMounted(async () => {
   try {
     const snap = await getDoc(doc(db, 'contents', id))
@@ -84,3 +92,26 @@ onMounted(async () => {
   }
 })
 </script>
+
+<style scoped>
+.rich-body :deep(h3) {
+  font-size: 1.05rem;
+  font-weight: 700;
+  margin: 0.75em 0 0.35em;
+  color: #333;
+}
+.rich-body :deep(ul) {
+  list-style: disc;
+  padding-left: 1.5em;
+  margin: 0.5em 0;
+}
+.rich-body :deep(ol) {
+  list-style: decimal;
+  padding-left: 1.5em;
+  margin: 0.5em 0;
+}
+.rich-body :deep(a) {
+  color: #FF8C61;
+  text-decoration: underline;
+}
+</style>
