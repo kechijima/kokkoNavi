@@ -5,9 +5,6 @@
       <div v-for="kpi in kpiCards" :key="kpi.label" class="card">
         <div class="flex items-center justify-between mb-3">
           <span class="text-2xl">{{ kpi.icon }}</span>
-          <span :class="['badge', kpi.trend > 0 ? 'badge-green' : 'badge-gray']">
-            {{ kpi.trend > 0 ? '+' : '' }}{{ kpi.trend }}%
-          </span>
         </div>
         <p class="text-2xl font-bold text-gray-800">{{ kpi.value.toLocaleString() }}</p>
         <p class="text-sm text-gray-500 mt-1">{{ kpi.label }}</p>
@@ -130,10 +127,10 @@ const loadingUsers = ref(true)
 const recentUsers = ref<any[]>([])
 const recentBroadcasts = ref<any[]>([])
 const kpiCards = ref([
-  { label: '登録ユーザー数', value: 0, icon: '👥', trend: 0 },
-  { label: '今月の配信数', value: 0, icon: '📢', trend: 0 },
-  { label: 'オンボーディング完了', value: 0, icon: '✅', trend: 0 },
-  { label: '今日のメッセージ', value: 0, icon: '💬', trend: 0 },
+  { label: '登録ユーザー数', value: 0, icon: '👥' },
+  { label: '今月の配信数', value: 0, icon: '📢' },
+  { label: 'オンボーディング完了', value: 0, icon: '✅' },
+  { label: '今日のメッセージ', value: 0, icon: '💬' },
 ])
 
 const quickActions = [
