@@ -130,7 +130,7 @@ const kpiCards = ref([
   { label: '登録ユーザー数', value: 0, icon: '👥' },
   { label: '今月の配信数', value: 0, icon: '📢' },
   { label: 'オンボーディング完了', value: 0, icon: '✅' },
-  { label: '今日のメッセージ', value: 0, icon: '💬' },
+  { label: '受信メッセージ数', value: 0, icon: '💬' },
 ])
 
 const quickActions = [
@@ -175,7 +175,6 @@ onMounted(async () => {
 
   // KPI集計
   const monthStart = Timestamp.fromDate(dayjs().startOf('month').toDate())
-  const todayStart = Timestamp.fromDate(dayjs().startOf('day').toDate())
 
   const results = await Promise.allSettled([
     // 登録ユーザー数
@@ -184,8 +183,8 @@ onMounted(async () => {
     getDocs(query(collection(db, 'broadcasts'), where('createdAt', '>=', monthStart))),
     // オンボーディング完了
     getCountFromServer(query(collection(db, 'users'), where('onboardingStatus', '==', 'completed'))),
-    // 今日のメッセージ（全会話の合計）
-    getCountFromServer(query(collectionGroup(db, 'messages'), where('timestamp', '>=', todayStart))),
+    // 受信メッセージ数（LINEユーザーから届いたメッセージの累計）
+    getCountFromServer(query(collectionGroup(db, 'messages'), where('type', '==', 'user'))),
   ])
 
   if (results[0].status === 'fulfilled') kpiCards.value[0].value = results[0].value.data().count
