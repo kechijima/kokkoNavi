@@ -18,17 +18,6 @@
       </div>
     </div>
 
-    <!-- 折りたたみボタン -->
-    <button
-      @click="collapsed = !collapsed"
-      class="flex items-center justify-center py-2 text-gray-400 hover:text-peach-500 hover:bg-peach-50 transition-colors border-b border-gray-50"
-      :title="collapsed ? 'メニューを開く' : 'メニューをたたむ'"
-    >
-      <svg class="w-4 h-4 transition-transform duration-200" :class="{ 'rotate-180': collapsed }" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 19l-7-7 7-7m8 14l-7-7 7-7" />
-      </svg>
-    </button>
-
     <!-- ナビゲーション -->
     <nav class="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
       <NuxtLink
@@ -81,6 +70,18 @@
         </template>
       </div>
     </div>
+
+    <!-- 折りたたみボタン（最下部） -->
+    <button
+      @click="collapsed = !collapsed"
+      class="flex items-center justify-center gap-2 py-2.5 text-gray-400 hover:text-peach-500 hover:bg-peach-50 transition-colors border-t border-gray-100"
+      :title="collapsed ? 'メニューを開く' : 'メニューをたたむ'"
+    >
+      <svg class="w-4 h-4 transition-transform duration-200" :class="{ 'rotate-180': collapsed }" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 19l-7-7 7-7m8 14l-7-7 7-7" />
+      </svg>
+      <span v-if="!collapsed" class="text-xs">たたむ</span>
+    </button>
   </aside>
 </template>
 
