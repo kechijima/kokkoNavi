@@ -21,6 +21,11 @@ service cloud.firestore {
       allow read, write: if isAdmin();
     }
 
+    // メッセージのコレクショングループクエリ（ダッシュボード集計用、管理者のみ）
+    match /{path=**}/messages/{messageId} {
+      allow read: if isAdmin();
+    }
+
     // コンテンツ
     // - 管理者: 読み書き可
     // - 公開ページ(/p/[id])用: 公開済みコンテンツのみ読み取り可

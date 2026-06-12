@@ -110,12 +110,15 @@
 <script setup lang="ts">
 import {
   collection,
+  collectionGroup,
   query,
+  where,
   orderBy,
   limit,
   onSnapshot,
   getDocs,
   getCountFromServer,
+  Timestamp,
 } from 'firebase/firestore'
 import dayjs from 'dayjs'
 import 'dayjs/locale/ja'
@@ -174,9 +177,28 @@ onMounted(async () => {
   recentBroadcasts.value = broadcastsSnap.docs.map(d => ({ id: d.id, ...d.data() }))
 
   // KPI集計
-  const [usersCount] = await Promise.all([
+  const monthStart = Timestamp.fromDate(dayjs().startOf('month').toDate())
+  const todayStart = Timestamp.fromDate(dayjs().startOf('day').toDate())
+
+  const results = await Promise.allSettled([
+    // 登録ユーザー数
     getCountFromServer(collection(db, 'users')),
+    // 今月の配信数（今月作成された配信のうち送信完了したもの）
+    getDocs(query(collection(db, 'broadcasts'), where('createdAt', '>=', monthStart))),
+    // オンボーディング完了
+    getCountFromServer(query(collection(db, 'users'), where('onboardingStatus', '==', 'completed'))),
+    // 今日のメッセージ（全会話の合計）
+    getCountFromServer(query(collectionGroup(db, 'messages'), where('timestamp', '>=', todayStart))),
   ])
-  kpiCards.value[0].value = usersCount.data().count
+
+  if (results[0].status === 'fulfilled') kpiCards.value[0].value = results[0].value.data().count
+  if (results[1].status === 'fulfilled') {
+    kpiCards.value[1].value = results[1].value.docs.filter(d => d.data().status === 'done').length
+  }
+  if (results[2].status === 'fulfilled') kpiCards.value[2].value = results[2].value.data().count
+  if (results[3].status === 'fulfilled') kpiCards.value[3].value = results[3].value.data().count
+  results.forEach((r, i) => {
+    if (r.status === 'rejected') console.error(`KPI集計失敗 [${i}]:`, r.reason)
+  })
 })
 </script>

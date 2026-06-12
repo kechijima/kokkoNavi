@@ -20,9 +20,14 @@
       <div v-for="seg in segments" :key="seg.id" class="card">
         <div class="flex items-start justify-between mb-3 gap-2">
           <h3 class="font-semibold text-gray-800 flex-1 min-w-0">{{ seg.name }}</h3>
-          <span class="badge badge-blue whitespace-nowrap flex-shrink-0">
-            {{ counting[seg.id] ? '…' : (seg.userCount ?? 0) }}人
-          </span>
+          <button
+            @click="showMatchedUsers(seg)"
+            :disabled="counting[seg.id] || !(matchedUsers[seg.id]?.length)"
+            class="badge badge-blue whitespace-nowrap flex-shrink-0 transition-colors"
+            :class="matchedUsers[seg.id]?.length ? 'cursor-pointer hover:bg-blue-200' : 'cursor-default'"
+          >
+            {{ counting[seg.id] ? '…' : (seg.userCount ?? 0) }}人 {{ matchedUsers[seg.id]?.length ? '▸' : '' }}
+          </button>
         </div>
         <div class="space-y-2">
           <div v-if="seg.conditions?.tags?.length" class="text-sm">
@@ -52,6 +57,34 @@
           <button @click="deleteSegment(seg.id)" class="btn-ghost text-xs px-3 py-1.5 text-red-400 hover:text-red-500 hover:bg-red-50">
             削除
           </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 該当ユーザー一覧モーダル -->
+    <div v-if="viewingSeg" class="fixed inset-0 bg-black/30 flex items-center justify-center z-50 p-4" @click.self="viewingSeg = null">
+      <div class="card w-full max-w-sm max-h-[70vh] flex flex-col">
+        <div class="flex items-center justify-between mb-3">
+          <h3 class="font-semibold text-gray-800 flex-1 min-w-0 truncate">
+            🎯 {{ viewingSeg.name }}
+            <span class="text-sm text-gray-400 font-normal ml-1">{{ matchedUsers[viewingSeg.id]?.length ?? 0 }}人</span>
+          </h3>
+          <button @click="viewingSeg = null" class="btn-ghost px-3 py-1.5 text-sm flex-shrink-0">✕</button>
+        </div>
+        <div class="flex-1 overflow-y-auto divide-y divide-gray-50">
+          <NuxtLink
+            v-for="user in matchedUsers[viewingSeg.id] ?? []"
+            :key="user.id"
+            :to="`/users/${user.id}`"
+            class="flex items-center gap-3 py-2.5 hover:bg-peach-50 rounded-lg px-2 transition-colors"
+          >
+            <img v-if="user.pictureUrl" :src="user.pictureUrl" class="w-8 h-8 rounded-full object-cover" alt="" />
+            <div v-else class="w-8 h-8 bg-peach-100 rounded-full flex items-center justify-center">
+              <span class="text-peach-600 text-xs font-medium">{{ user.displayName?.charAt(0) }}</span>
+            </div>
+            <span class="text-sm text-gray-800 flex-1 truncate">{{ user.displayName }}</span>
+            <span class="text-xs text-gray-400">詳細 →</span>
+          </NuxtLink>
         </div>
       </div>
     </div>
@@ -147,6 +180,12 @@ const editingId = ref<string | null>(null)
 const segments = ref<any[]>([])
 const masterTags = ref<any[]>([])
 const counting = ref<Record<string, boolean>>({})
+const matchedUsers = ref<Record<string, any[]>>({})
+const viewingSeg = ref<any>(null)
+
+const showMatchedUsers = (seg: any) => {
+  if (matchedUsers.value[seg.id]?.length) viewingSeg.value = seg
+}
 const tagInput = ref('')
 const anyTagInput = ref('')
 const newSeg = ref({ name: '', tags: [] as string[], anyTags: [] as string[], region: '' })
@@ -174,23 +213,17 @@ function matchSegment(userData: any, conditions: any): boolean {
   return true
 }
 
-async function calcUserCount(seg: any): Promise<number> {
-  const conditions = seg.conditions ?? {}
-  const snap = await getDocs(collection(db, 'users'))
-  let count = 0
-  snap.docs.forEach(d => {
-    if (matchSegment(d.data(), conditions)) count++
-  })
-  return count
-}
-
 async function refreshCounts(segs: any[]) {
+  segs.forEach(seg => { counting.value[seg.id] = true })
+  const usersSnap = await getDocs(collection(db, 'users'))
+  const allUsers = usersSnap.docs.map(d => ({ id: d.id, ...d.data() }))
+
   for (const seg of segs) {
-    counting.value[seg.id] = true
-    const count = await calcUserCount(seg)
-    seg.userCount = count
+    const matched = allUsers.filter(u => matchSegment(u, seg.conditions ?? {}))
+    matchedUsers.value[seg.id] = matched
+    seg.userCount = matched.length
     counting.value[seg.id] = false
-    await updateDoc(doc(db, 'segments', seg.id), { userCount: count })
+    await updateDoc(doc(db, 'segments', seg.id), { userCount: matched.length })
   }
 }
 
