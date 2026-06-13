@@ -46,11 +46,23 @@
         <div
           v-if="isHtmlBody"
           class="bg-white rounded-xl p-5 shadow-sm text-sm text-gray-700 leading-relaxed rich-body"
-          v-html="displayBody"
+          v-html="content.body"
         />
         <div v-else class="bg-white rounded-xl p-5 shadow-sm text-sm text-gray-700 leading-relaxed whitespace-pre-line">
           {{ content.body }}
         </div>
+
+        <!-- もともと設定されていたリンクURL（本文に含まれていない場合のみ） -->
+        <a
+          v-if="customLinkUrl"
+          :href="customLinkUrl"
+          target="_blank"
+          rel="noopener"
+          class="block bg-white rounded-xl p-4 shadow-sm border border-peach-100 hover:border-peach-300 transition-colors"
+        >
+          <p class="text-xs text-gray-400 mb-1">🔗 関連リンク</p>
+          <p class="text-sm text-peach-600 underline break-all">{{ customLinkUrl }}</p>
+        </a>
 
         <div v-if="content.tags?.length" class="flex flex-wrap gap-2 pt-2">
           <span
@@ -77,8 +89,11 @@ const loading = ref(true)
 const content = ref<any>(null)
 
 // リッチエディタで作成されたHTML本文かどうか（旧プレーンテキスト記事との互換）
-// 以前カスタムlinkURLを設定していたコンテンツは、本文末尾にそのURLを表示する
-// （自動生成URL /p/{id} は除外。再保存していないコンテンツでも見えるようにする）
+// リッチエディタで作成されたHTML本文かどうか（旧プレーンテキスト記事との互換）
+const isHtmlBody = computed(() => /<[a-z][\s\S]*>/i.test(content.value?.body ?? ''))
+
+// もともとカスタムリンクURLを設定していたコンテンツは、本文の下にリンクを表示する
+// （自動生成URL /p/{id} と暫定値は除外。本文中に既に含まれている場合も表示しない）
 const customLinkUrl = computed(() => {
   const body = content.value?.body ?? ''
   const linkUrl = content.value?.linkUrl ?? ''
@@ -92,20 +107,6 @@ const customLinkUrl = computed(() => {
   }
   return ''
 })
-
-const displayBody = computed(() => {
-  const body = content.value?.body ?? ''
-  if (customLinkUrl.value) {
-    return body + `<p><a href="${customLinkUrl.value}" target="_blank" rel="noopener">${customLinkUrl.value}</a></p>`
-  }
-  return body
-})
-
-// リッチエディタで作成されたHTML本文かどうか（旧プレーンテキスト記事との互換）
-// カスタムリンクを付与する場合もHTMLレンダリングする
-const isHtmlBody = computed(() =>
-  customLinkUrl.value !== '' || /<[a-z][\s\S]*>/i.test(content.value?.body ?? '')
-)
 
 onMounted(async () => {
   try {

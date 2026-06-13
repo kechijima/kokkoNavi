@@ -35,6 +35,13 @@
         <RichTextEditor v-model="form.body" placeholder="コンテンツの内容を入力..." />
       </div>
 
+      <!-- もともと設定されていたリンクURL（公開ページに関連リンクとして表示される） -->
+      <div v-if="savedCustomLink">
+        <label class="block text-sm font-medium text-gray-700 mb-1.5">関連リンクURL</label>
+        <input v-model="savedCustomLink" type="url" class="input" placeholder="https://..." />
+        <p class="text-xs text-gray-400 mt-1">このURLは公開ページに「関連リンク」として表示されます。LINEの「全文を読む」は公開ページに遷移します。</p>
+      </div>
+
       <div>
         <label class="block text-sm font-medium text-gray-700 mb-1.5">サムネイル画像</label>
         <div class="flex gap-2">
@@ -207,6 +214,9 @@ const form = ref({
   tags: [] as string[],
 })
 
+// もともと設定されていたカスタムリンクURL（自動生成URLでないもの）
+const savedCustomLink = ref('')
+
 const toggleTag = (name: string) => {
   const idx = form.value.tags.indexOf(name)
   if (idx >= 0) form.value.tags.splice(idx, 1)
@@ -227,17 +237,22 @@ const save = async () => {
   try {
     const base = 'https://kokkonavi.web.app'
     if (isNew) {
+      // 新規はカスタムURL未設定なら暫定値→自動生成URLに置き換え
+      const customLink = form.value.linkUrl?.trim() || ''
       const docRef = await addDoc(collection(db, 'contents'), {
         ...form.value,
-        linkUrl: '__pending__',
+        linkUrl: customLink || '__pending__',
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
       })
-      await updateDoc(docRef, { linkUrl: `${base}/p/${docRef.id}` })
+      if (!customLink) {
+        await updateDoc(docRef, { linkUrl: `${base}/p/${docRef.id}` })
+      }
     } else {
+      // 関連リンク欄が表示されている場合はその値をlinkUrlとして保持する
       await updateDoc(doc(db, 'contents', id), {
         ...form.value,
-        linkUrl: `${base}/p/${id}`,
+        linkUrl: savedCustomLink.value || form.value.linkUrl,
         updatedAt: serverTimestamp(),
       })
     }
@@ -265,19 +280,17 @@ onMounted(async () => {
     if (snap.exists()) {
       const data = snap.data()
       const existingLinkUrl = data.linkUrl ?? ''
-      let body = data.body ?? ''
-      // 以前に保存されたlinkUrl（自動生成でないもの）を本文に復元
+      // 自動生成URL・暫定値はカスタムリンクとして扱わない
       if (
         existingLinkUrl &&
         existingLinkUrl !== '__pending__' &&
-        !existingLinkUrl.match(/\/p\/[a-zA-Z0-9]+$/) &&
-        !body.includes(existingLinkUrl)
+        !existingLinkUrl.match(/\/p\/[a-zA-Z0-9]+$/)
       ) {
-        body = body + `<p><a href="${existingLinkUrl}" target="_blank">${existingLinkUrl}</a></p>`
+        savedCustomLink.value = existingLinkUrl
       }
       form.value = {
         title: data.title ?? '',
-        body,
+        body: data.body ?? '',
         category: data.category ?? '',
         status: data.status ?? 'draft',
         linkUrl: existingLinkUrl,
