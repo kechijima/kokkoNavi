@@ -46,7 +46,7 @@
         <div
           v-if="isHtmlBody"
           class="bg-white rounded-xl p-5 shadow-sm text-sm text-gray-700 leading-relaxed rich-body"
-          v-html="content.body"
+          v-html="displayBody"
         />
         <div v-else class="bg-white rounded-xl p-5 shadow-sm text-sm text-gray-700 leading-relaxed whitespace-pre-line">
           {{ content.body }}
@@ -77,7 +77,35 @@ const loading = ref(true)
 const content = ref<any>(null)
 
 // リッチエディタで作成されたHTML本文かどうか（旧プレーンテキスト記事との互換）
-const isHtmlBody = computed(() => /<[a-z][\s\S]*>/i.test(content.value?.body ?? ''))
+// 以前カスタムlinkURLを設定していたコンテンツは、本文末尾にそのURLを表示する
+// （自動生成URL /p/{id} は除外。再保存していないコンテンツでも見えるようにする）
+const customLinkUrl = computed(() => {
+  const body = content.value?.body ?? ''
+  const linkUrl = content.value?.linkUrl ?? ''
+  if (
+    linkUrl &&
+    linkUrl !== '__pending__' &&
+    !linkUrl.match(/\/p\/[a-zA-Z0-9]+$/) &&
+    !body.includes(linkUrl)
+  ) {
+    return linkUrl
+  }
+  return ''
+})
+
+const displayBody = computed(() => {
+  const body = content.value?.body ?? ''
+  if (customLinkUrl.value) {
+    return body + `<p><a href="${customLinkUrl.value}" target="_blank" rel="noopener">${customLinkUrl.value}</a></p>`
+  }
+  return body
+})
+
+// リッチエディタで作成されたHTML本文かどうか（旧プレーンテキスト記事との互換）
+// カスタムリンクを付与する場合もHTMLレンダリングする
+const isHtmlBody = computed(() =>
+  customLinkUrl.value !== '' || /<[a-z][\s\S]*>/i.test(content.value?.body ?? '')
+)
 
 onMounted(async () => {
   try {
