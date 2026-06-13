@@ -101,6 +101,11 @@ onMounted(() => {
 .toolbar-btn {
   @apply text-xs px-2.5 py-1.5 rounded-lg text-gray-600 hover:bg-peach-100 hover:text-peach-600 transition-colors disabled:opacity-50;
 }
+.rich-editor-body {
+  /* 公開ページ(whitespace-pre-line)と改行表示を揃える。
+     プレーンテキスト本文の\n改行を保持しつつ、HTML本文も正しく表示する */
+  white-space: pre-line;
+}
 .rich-editor-body:empty::before {
   content: attr(data-placeholder);
   color: #9ca3af;

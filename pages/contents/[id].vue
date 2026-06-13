@@ -133,7 +133,13 @@
             class="w-full rounded-xl object-cover max-h-64"
             alt=""
           />
-          <div class="bg-white rounded-xl p-5 shadow-sm text-sm text-gray-700 leading-relaxed rich-body" v-html="form.body || '<span class=\'text-gray-400\'>（本文未入力）</span>'" />
+          <!-- 公開ページと同じ判定: HTML本文はそのまま、プレーンテキストは改行保持 -->
+          <div
+            v-if="isHtmlBody"
+            class="bg-white rounded-xl p-5 shadow-sm text-sm text-gray-700 leading-relaxed rich-body"
+            v-html="form.body || '<span class=\'text-gray-400\'>（本文未入力）</span>'"
+          />
+          <div v-else class="bg-white rounded-xl p-5 shadow-sm text-sm text-gray-700 leading-relaxed whitespace-pre-line">{{ form.body || '（本文未入力）' }}</div>
           <!-- 関連リンクプレビュー -->
           <template v-for="link in customLinks.filter(l => l.trim())" :key="link">
             <div class="bg-white rounded-xl p-4 shadow-sm border border-peach-100">
@@ -191,6 +197,9 @@ const masterTags = ref<{ id: string; name: string }[]>([])
 const categories = ref<string[]>([])
 const showPreview = ref(false)
 const previewMode = ref<'page' | 'line'>('page')
+
+// リッチエディタで作成されたHTML本文かどうか（旧プレーンテキスト記事との互換）
+const isHtmlBody = computed(() => /<[a-z][\s\S]*>/i.test(form.value.body))
 
 // LINEカードに表示される本文プレビュー（HTMLタグ除去・60文字）
 const lineBodyPreview = computed(() => {
