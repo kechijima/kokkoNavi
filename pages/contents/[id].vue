@@ -265,12 +265,23 @@ onMounted(async () => {
     const snap = await getDoc(doc(db, 'contents', id))
     if (snap.exists()) {
       const data = snap.data()
+      const existingLinkUrl = data.linkUrl ?? ''
+      let body = data.body ?? ''
+      // 以前に保存されたlinkUrl（自動生成でないもの）を本文に復元
+      if (
+        existingLinkUrl &&
+        existingLinkUrl !== '__pending__' &&
+        !existingLinkUrl.match(/\/p\/[a-zA-Z0-9]+$/) &&
+        !body.includes(existingLinkUrl)
+      ) {
+        body = body + `<p><a href="${existingLinkUrl}" target="_blank">${existingLinkUrl}</a></p>`
+      }
       form.value = {
         title: data.title ?? '',
-        body: data.body ?? '',
+        body,
         category: data.category ?? '',
         status: data.status ?? 'draft',
-        linkUrl: data.linkUrl ?? '',
+        linkUrl: existingLinkUrl,
         imageUrl: data.imageUrl ?? '',
         tags: data.tags ?? [],
       }
