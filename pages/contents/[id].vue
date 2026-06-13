@@ -225,26 +225,25 @@ const save = async () => {
   }
   saving.value = true
   try {
-    const base = window?.location?.origin ?? 'https://kokkonavi.web.app'
+    const base = 'https://kokkonavi.web.app'
     if (isNew) {
       const docRef = await addDoc(collection(db, 'contents'), {
         ...form.value,
-        // リンクURLが空なら公開ページURLを自動設定
-        linkUrl: form.value.linkUrl || '__pending__',
+        linkUrl: '__pending__',
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
       })
-      // 生成されたIDで公開URLを上書き
-      if (!form.value.linkUrl) {
-        await updateDoc(docRef, { linkUrl: `${base}/p/${docRef.id}` })
-      }
+      await updateDoc(docRef, { linkUrl: `${base}/p/${docRef.id}` })
     } else {
       await updateDoc(doc(db, 'contents', id), {
         ...form.value,
+        linkUrl: `${base}/p/${id}`,
         updatedAt: serverTimestamp(),
       })
     }
     router.push('/contents')
+  } catch (err: any) {
+    alert('保存に失敗しました: ' + (err?.message ?? String(err)))
   } finally {
     saving.value = false
   }
