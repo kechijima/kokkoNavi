@@ -99,10 +99,8 @@ async function handleCategorySearch(event: PostbackEvent, client: messagingApi.M
 
   const bubbles: any[] = matchedDocs.map(d => {
     const c = d.data()
-    // linkUrl未設定または暫定値の場合は公開ページURLを自動生成
-    const linkUrl = (c.linkUrl && c.linkUrl !== '__pending__')
-      ? c.linkUrl
-      : `${BASE_URL}/p/${d.id}`
+    // コンテンツは常に公開ページ（自動生成URL）へ遷移する
+    const linkUrl = `${BASE_URL}/p/${d.id}`
 
     return {
       type: 'bubble',
