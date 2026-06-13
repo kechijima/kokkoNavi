@@ -52,16 +52,17 @@
           {{ content.body }}
         </div>
 
-        <!-- もともと設定されていたリンクURL（本文に含まれていない場合のみ） -->
+        <!-- 関連リンク（複数対応） -->
         <a
-          v-if="customLinkUrl"
-          :href="customLinkUrl"
+          v-for="link in relatedLinks"
+          :key="link"
+          :href="link"
           target="_blank"
           rel="noopener"
           class="block bg-white rounded-xl p-4 shadow-sm border border-peach-100 hover:border-peach-300 transition-colors"
         >
           <p class="text-xs text-gray-400 mb-1">🔗 関連リンク</p>
-          <p class="text-sm text-peach-600 underline break-all">{{ customLinkUrl }}</p>
+          <p class="text-sm text-peach-600 underline break-all">{{ link }}</p>
         </a>
 
         <div v-if="content.tags?.length" class="flex flex-wrap gap-2 pt-2">
@@ -92,10 +93,14 @@ const content = ref<any>(null)
 // リッチエディタで作成されたHTML本文かどうか（旧プレーンテキスト記事との互換）
 const isHtmlBody = computed(() => /<[a-z][\s\S]*>/i.test(content.value?.body ?? ''))
 
-// もともとカスタムリンクURLを設定していたコンテンツは、本文の下にリンクを表示する
-// （自動生成URL /p/{id} と暫定値は除外。本文中に既に含まれている場合も表示しない）
-const customLinkUrl = computed(() => {
+// 関連リンク一覧（複数対応）
+// linkUrls配列があればそれを使用、なければ旧linkUrlから互換取得
+const relatedLinks = computed<string[]>(() => {
   const body = content.value?.body ?? ''
+  if (Array.isArray(content.value?.linkUrls) && content.value.linkUrls.length > 0) {
+    return content.value.linkUrls.filter((u: string) => u && !body.includes(u))
+  }
+  // 旧データ互換: linkUrlが自動生成でなければ表示
   const linkUrl = content.value?.linkUrl ?? ''
   if (
     linkUrl &&
@@ -103,9 +108,9 @@ const customLinkUrl = computed(() => {
     !linkUrl.match(/\/p\/[a-zA-Z0-9]+$/) &&
     !body.includes(linkUrl)
   ) {
-    return linkUrl
+    return [linkUrl]
   }
-  return ''
+  return []
 })
 
 onMounted(async () => {
@@ -142,6 +147,7 @@ onMounted(async () => {
 .rich-body :deep(a) {
   color: #FF8C61;
   text-decoration: underline;
+  word-break: break-all;
 }
 .rich-body :deep(img) {
   max-width: 100%;

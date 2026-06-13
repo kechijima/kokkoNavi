@@ -35,11 +35,17 @@
         <RichTextEditor v-model="form.body" placeholder="コンテンツの内容を入力..." />
       </div>
 
-      <!-- もともと設定されていたリンクURL（公開ページに関連リンクとして表示される） -->
-      <div v-if="savedCustomLink">
+      <!-- 関連リンクURL（複数設定可・公開ページに表示される） -->
+      <div>
         <label class="block text-sm font-medium text-gray-700 mb-1.5">関連リンクURL</label>
-        <input v-model="savedCustomLink" type="url" class="input" placeholder="https://..." />
-        <p class="text-xs text-gray-400 mt-1">このURLは公開ページに「関連リンク」として表示されます。LINEの「全文を読む」は公開ページに遷移します。</p>
+        <div class="space-y-2">
+          <div v-for="(link, i) in customLinks" :key="i" class="flex gap-2">
+            <input v-model="customLinks[i]" type="url" class="input flex-1" placeholder="https://..." />
+            <button type="button" @click="customLinks.splice(i, 1)" class="btn-ghost px-3 py-2 text-gray-400 hover:text-red-400">✕</button>
+          </div>
+          <button type="button" @click="customLinks.push('')" class="text-sm text-peach-500 hover:text-peach-600 font-medium">＋ リンクを追加</button>
+        </div>
+        <p class="text-xs text-gray-400 mt-1">公開ページに「関連リンク」として表示されます。LINEの「全文を読む」は公開ページに遷移します。</p>
       </div>
 
       <div>
@@ -128,6 +134,13 @@
             alt=""
           />
           <div class="bg-white rounded-xl p-5 shadow-sm text-sm text-gray-700 leading-relaxed rich-body" v-html="form.body || '<span class=\'text-gray-400\'>（本文未入力）</span>'" />
+          <!-- 関連リンクプレビュー -->
+          <template v-for="link in customLinks.filter(l => l.trim())" :key="link">
+            <div class="bg-white rounded-xl p-4 shadow-sm border border-peach-100">
+              <p class="text-xs text-gray-400 mb-1">🔗 関連リンク</p>
+              <p class="text-sm text-peach-600 underline break-all">{{ link }}</p>
+            </div>
+          </template>
           <div v-if="form.tags.length" class="flex flex-wrap gap-2 pt-2">
             <span
               v-for="tag in form.tags"
@@ -214,8 +227,8 @@ const form = ref({
   tags: [] as string[],
 })
 
-// もともと設定されていたカスタムリンクURL（自動生成URLでないもの）
-const savedCustomLink = ref('')
+// 関連リンクURL一覧（複数設定可）
+const customLinks = ref<string[]>([])
 
 const toggleTag = (name: string) => {
   const idx = form.value.tags.indexOf(name)
@@ -236,23 +249,20 @@ const save = async () => {
   saving.value = true
   try {
     const base = 'https://kokkonavi.web.app'
+    const validLinks = customLinks.value.map(l => l.trim()).filter(Boolean)
     if (isNew) {
-      // 新規はカスタムURL未設定なら暫定値→自動生成URLに置き換え
-      const customLink = form.value.linkUrl?.trim() || ''
       const docRef = await addDoc(collection(db, 'contents'), {
         ...form.value,
-        linkUrl: customLink || '__pending__',
+        linkUrl: '__pending__',
+        linkUrls: validLinks,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
       })
-      if (!customLink) {
-        await updateDoc(docRef, { linkUrl: `${base}/p/${docRef.id}` })
-      }
+      await updateDoc(docRef, { linkUrl: `${base}/p/${docRef.id}` })
     } else {
-      // 関連リンク欄が表示されている場合はその値をlinkUrlとして保持する
       await updateDoc(doc(db, 'contents', id), {
         ...form.value,
-        linkUrl: savedCustomLink.value || form.value.linkUrl,
+        linkUrls: validLinks,
         updatedAt: serverTimestamp(),
       })
     }
@@ -280,13 +290,15 @@ onMounted(async () => {
     if (snap.exists()) {
       const data = snap.data()
       const existingLinkUrl = data.linkUrl ?? ''
-      // 自動生成URL・暫定値はカスタムリンクとして扱わない
-      if (
+      // linkUrls配列があればそれを使用。なければ旧linkUrlをマイグレーション
+      if (Array.isArray(data.linkUrls) && data.linkUrls.length > 0) {
+        customLinks.value = [...data.linkUrls]
+      } else if (
         existingLinkUrl &&
         existingLinkUrl !== '__pending__' &&
         !existingLinkUrl.match(/\/p\/[a-zA-Z0-9]+$/)
       ) {
-        savedCustomLink.value = existingLinkUrl
+        customLinks.value = [existingLinkUrl]
       }
       form.value = {
         title: data.title ?? '',
@@ -322,6 +334,7 @@ onMounted(async () => {
 .rich-body :deep(a) {
   color: #FF8C61;
   text-decoration: underline;
+  word-break: break-all;
 }
 .rich-body :deep(img) {
   max-width: 100%;
