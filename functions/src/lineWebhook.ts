@@ -428,28 +428,22 @@ async function handlePostback(event: PostbackEvent, client: messagingApi.Messagi
       break
     }
 
-    // すべて見る → キーワード検索を促す + 種別・クイック選択も提示
+    // すべて見る → 検索ウェブページを開く
     case 'search_more': {
-      const catSnap = await db.collection('categories').orderBy('order', 'asc').get()
-      const catNames: string[] = catSnap.empty
-        ? ['子育て支援', '住居支援', '就労支援', '経済支援', '法律・権利', 'その他']
-        : catSnap.docs.map(d => d.data().name as string)
-      // キーワード検索待ち状態をセット
-      await db.collection('users').doc(event.source.userId!).update({ pendingAction: 'keyword_search' })
+      const BASE_URL = 'https://kokkonavi.web.app'
       await client.replyMessage({
         replyToken: event.replyToken,
         messages: [{
-          type: 'text',
-          text: '🔍 キーワードで検索できます！\n\n検索したいキーワードを入力してください。\n（例：「保育」「養育費」「就職」など）\n\nまたは種別から選ぶこともできます👇',
-          quickReply: {
-            items: [
-              ...catNames.slice(0, 12).map(c => ({
-                type: 'action' as const,
-                action: { type: 'postback' as const, label: c.length > 20 ? c.substring(0, 20) : c, data: `action=search_all&cat=${c}`, displayText: c },
-              })),
+          type: 'template',
+          altText: '支援情報を検索する',
+          template: {
+            type: 'buttons',
+            text: '🔍 支援情報を検索します。\nキーワード・種別・タグで絞り込めます！',
+            actions: [
+              { type: 'uri', label: '🔍 検索ページを開く', uri: `${BASE_URL}/search` },
             ],
           },
-        } as TextMessage]
+        }]
       })
       break
     }
