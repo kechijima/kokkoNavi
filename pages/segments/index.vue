@@ -42,9 +42,8 @@
               <span v-for="tag in seg.conditions.anyTags" :key="tag" class="badge badge-gray">{{ tag }}</span>
             </div>
           </div>
-          <div v-if="seg.conditions?.region" class="text-sm">
-            <span class="text-gray-500 text-xs">地域</span>
-            <span class="ml-2 badge badge-blue">{{ seg.conditions.region }}</span>
+          <div v-if="seg.conditions?.includeOnboarding" class="text-sm">
+            <span class="badge badge-blue text-xs">回答中も含む</span>
           </div>
         </div>
         <div class="flex flex-wrap gap-2 mt-4 pt-3 border-t border-gray-50">
@@ -97,9 +96,10 @@
         <div class="space-y-4">
           <div>
             <label class="block text-sm font-medium text-gray-700 mb-1.5">セグメント名</label>
-            <input v-model="newSeg.name" type="text" class="input" placeholder="例: 東京在住・未就学児のいる方" />
+            <input v-model="newSeg.name" type="text" class="input" placeholder="例: 就労支援タグのある方" />
           </div>
 
+          <!-- AND条件 -->
           <div>
             <label class="block text-sm font-medium text-gray-700 mb-1.5">
               タグ条件 AND（すべてのタグを持つユーザー）
@@ -109,7 +109,7 @@
                 {{ tag }} ×
               </span>
             </div>
-            <div v-if="masterTags.length" class="flex flex-wrap gap-1 mb-2">
+            <div v-if="masterTags.length" class="flex flex-wrap gap-1">
               <button
                 v-for="t in masterTags.filter(t => !newSeg.tags.includes(t.name))"
                 :key="t.id"
@@ -118,12 +118,9 @@
                 class="badge badge-gray text-xs cursor-pointer hover:bg-peach-100 hover:text-peach-700 transition-colors"
               >+ {{ t.name }}</button>
             </div>
-            <div class="flex gap-2">
-              <input v-model="tagInput" type="text" class="input text-sm" placeholder="その他のタグを直接入力..." @keydown.enter="addSegTag" />
-              <button @click="addSegTag" class="btn-secondary text-sm px-3">追加</button>
-            </div>
           </div>
 
+          <!-- OR条件 -->
           <div>
             <label class="block text-sm font-medium text-gray-700 mb-1.5">
               タグ条件 OR（いずれかのタグを持つユーザー）
@@ -133,7 +130,7 @@
                 {{ tag }} ×
               </span>
             </div>
-            <div v-if="masterTags.length" class="flex flex-wrap gap-1 mb-2">
+            <div v-if="masterTags.length" class="flex flex-wrap gap-1 mb-3">
               <button
                 v-for="t in masterTags.filter(t => !newSeg.anyTags.includes(t.name))"
                 :key="t.id"
@@ -142,15 +139,11 @@
                 class="badge badge-gray text-xs cursor-pointer hover:bg-blue-100 hover:text-blue-700 transition-colors"
               >+ {{ t.name }}</button>
             </div>
-            <div class="flex gap-2">
-              <input v-model="anyTagInput" type="text" class="input text-sm" placeholder="その他のタグを直接入力..." @keydown.enter="addAnySegTag" />
-              <button @click="addAnySegTag" class="btn-secondary text-sm px-3">追加</button>
-            </div>
-          </div>
-
-          <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1.5">地域（任意）</label>
-            <input v-model="newSeg.region" type="text" class="input" placeholder="例: 東京都" />
+            <!-- 回答中を含む（OR条件時のみ有効） -->
+            <label v-if="newSeg.anyTags.length > 0" class="flex items-center gap-2 cursor-pointer mt-1">
+              <input v-model="newSeg.includeOnboarding" type="checkbox" class="rounded text-peach-500" />
+              <span class="text-sm text-gray-700">回答中の方も含む（オンボーディング未完了のユーザーも対象にする）</span>
+            </label>
           </div>
         </div>
 
@@ -168,7 +161,7 @@
 
 <script setup lang="ts">
 import {
-  collection, query, orderBy, onSnapshot, getDocs, where,
+  collection, query, orderBy, onSnapshot, getDocs,
   addDoc, updateDoc, deleteDoc, doc, serverTimestamp,
 } from 'firebase/firestore'
 
@@ -186,28 +179,26 @@ const viewingSeg = ref<any>(null)
 const showMatchedUsers = (seg: any) => {
   if (matchedUsers.value[seg.id]?.length) viewingSeg.value = seg
 }
-const tagInput = ref('')
-const anyTagInput = ref('')
-const newSeg = ref({ name: '', tags: [] as string[], anyTags: [] as string[], region: '' })
 
-// ─── ユーザー数カウント ──────────────────────────
+const newSeg = ref({
+  name: '',
+  tags: [] as string[],
+  anyTags: [] as string[],
+  includeOnboarding: false,
+})
 
 function matchSegment(userData: any, conditions: any): boolean {
   if (conditions.tags?.length) {
     const userTags = userData.tags ?? []
-    const hasAll = conditions.tags.every((t: string) => userTags.includes(t))
-    if (!hasAll) return false
+    if (!conditions.tags.every((t: string) => userTags.includes(t))) return false
   }
 
   if (conditions.anyTags?.length) {
     const userTags = userData.tags ?? []
     const hasAny = conditions.anyTags.some((t: string) => userTags.includes(t))
     if (!hasAny) return false
-  }
-
-  if (conditions.region) {
-    const userRegion = userData.attributes?.region
-    if (!userRegion || !userRegion.includes(conditions.region)) return false
+    // OR条件で「回答中を含まない」場合は完了済みのみ
+    if (!conditions.includeOnboarding && userData.onboardingStatus !== 'completed') return false
   }
 
   return true
@@ -227,26 +218,13 @@ async function refreshCounts(segs: any[]) {
   }
 }
 
-// ─── セグメント作成・編集 ────────────────────────
-
-const addSegTag = () => {
-  const t = tagInput.value.trim()
-  if (t && !newSeg.value.tags.includes(t)) newSeg.value.tags.push(t)
-  tagInput.value = ''
-}
-const addAnySegTag = () => {
-  const t = anyTagInput.value.trim()
-  if (t && !newSeg.value.anyTags.includes(t)) newSeg.value.anyTags.push(t)
-  anyTagInput.value = ''
-}
-
 const openEdit = (seg: any) => {
   editingId.value = seg.id
   newSeg.value = {
     name: seg.name,
     tags: [...(seg.conditions?.tags ?? [])],
     anyTags: [...(seg.conditions?.anyTags ?? [])],
-    region: seg.conditions?.region ?? '',
+    includeOnboarding: seg.conditions?.includeOnboarding ?? false,
   }
   showForm.value = true
 }
@@ -254,9 +232,7 @@ const openEdit = (seg: any) => {
 const closeForm = () => {
   showForm.value = false
   editingId.value = null
-  newSeg.value = { name: '', tags: [], anyTags: [], region: '' }
-  tagInput.value = ''
-  anyTagInput.value = ''
+  newSeg.value = { name: '', tags: [], anyTags: [], includeOnboarding: false }
 }
 
 const saveSegment = async () => {
@@ -265,8 +241,10 @@ const saveSegment = async () => {
   try {
     const conditions: any = {}
     if (newSeg.value.tags.length) conditions.tags = newSeg.value.tags
-    if (newSeg.value.anyTags.length) conditions.anyTags = newSeg.value.anyTags
-    if (newSeg.value.region.trim()) conditions.region = newSeg.value.region.trim()
+    if (newSeg.value.anyTags.length) {
+      conditions.anyTags = newSeg.value.anyTags
+      conditions.includeOnboarding = newSeg.value.includeOnboarding
+    }
 
     if (editingId.value) {
       await updateDoc(doc(db, 'segments', editingId.value), {
@@ -293,8 +271,6 @@ const deleteSegment = async (id: string) => {
   if (!confirm('このセグメントを削除しますか？')) return
   await deleteDoc(doc(db, 'segments', id))
 }
-
-// ─── 初期データ取得 ──────────────────────────────
 
 onMounted(() => {
   onSnapshot(query(collection(db, 'tags'), orderBy('createdAt', 'asc')), snap => {

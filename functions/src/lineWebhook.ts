@@ -324,6 +324,63 @@ async function handleFaq(event: PostbackEvent | MessageEvent, client: messagingA
   })
 }
 
+// ─── キーワード検索 ──────────────────────────────
+
+async function handleKeywordSearch(event: MessageEvent, client: messagingApi.MessagingApiClient, keyword: string) {
+  const kw = keyword.trim().toLowerCase()
+  const snap = await db.collection('contents')
+    .where('status', '==', 'published')
+    .get()
+
+  const matched = snap.docs.filter(d => {
+    const c = d.data()
+    const title = String(c.title ?? '').toLowerCase()
+    const body = String(c.body ?? '').replace(/<[^>]*>/g, '').toLowerCase()
+    const category = String(c.category ?? '').toLowerCase()
+    const tags: string[] = c.tags ?? []
+    return title.includes(kw) || body.includes(kw) || category.includes(kw) ||
+      tags.some(t => t.toLowerCase().includes(kw))
+  })
+
+  if (matched.length === 0) {
+    await client.replyMessage({
+      replyToken: event.replyToken,
+      messages: [{ type: 'text', text: `「${keyword}」に一致するコンテンツは見つかりませんでした。\n別のキーワードでお試しください。` }],
+    })
+    return
+  }
+
+  const BASE_URL = 'https://kokkonavi.web.app'
+  const bubbles = matched.slice(0, 10).map(d => {
+    const c = d.data()
+    const bodyText = String(c.body ?? '').replace(/<[^>]*>/g, '').substring(0, 60)
+    return {
+      type: 'bubble', size: 'kilo',
+      header: c.imageUrl ? { type: 'box', layout: 'vertical', paddingAll: 'none', contents: [{ type: 'image', url: c.imageUrl, size: 'full', aspectRatio: '20:13', aspectMode: 'cover' }] } : undefined,
+      body: {
+        type: 'box', layout: 'vertical', paddingAll: 'xl',
+        contents: [
+          { type: 'text', text: c.category ?? '', size: 'xs', color: '#FF8C61' },
+          { type: 'text', text: c.title, weight: 'bold', size: 'sm', wrap: true, color: '#333333', margin: 'sm' },
+          { type: 'text', text: bodyText + '…', size: 'xs', color: '#666666', wrap: true, margin: 'sm' },
+        ],
+      },
+      footer: {
+        type: 'box', layout: 'vertical', paddingAll: 'lg',
+        contents: [{ type: 'button', height: 'sm', style: 'primary', color: '#FF8C61', action: { type: 'uri', label: '全文を読む 📖', uri: `${BASE_URL}/p/${d.id}` } }],
+      },
+    }
+  })
+
+  await client.replyMessage({
+    replyToken: event.replyToken,
+    messages: [
+      { type: 'text', text: `「${keyword}」の検索結果：${matched.length}件見つかりました${matched.length > 10 ? '（上位10件を表示）' : ''}` },
+      { type: 'flex', altText: `「${keyword}」の検索結果`, contents: { type: 'carousel', contents: bubbles } } as any,
+    ],
+  })
+}
+
 // ─── Postback（リッチメニューボタン） ───────────
 
 async function handlePostback(event: PostbackEvent, client: messagingApi.MessagingApiClient) {
@@ -371,22 +428,26 @@ async function handlePostback(event: PostbackEvent, client: messagingApi.Messagi
       break
     }
 
-    // すべて見る → 種別一覧を提示（タグ絞り込みなし検索へ）
+    // すべて見る → キーワード検索を促す + 種別・クイック選択も提示
     case 'search_more': {
       const catSnap = await db.collection('categories').orderBy('order', 'asc').get()
       const catNames: string[] = catSnap.empty
         ? ['子育て支援', '住居支援', '就労支援', '経済支援', '法律・権利', 'その他']
         : catSnap.docs.map(d => d.data().name as string)
+      // キーワード検索待ち状態をセット
+      await db.collection('users').doc(event.source.userId!).update({ pendingAction: 'keyword_search' })
       await client.replyMessage({
         replyToken: event.replyToken,
         messages: [{
           type: 'text',
-          text: '🔍 すべてのコンテンツから探します。\n種別を選んでください👇',
+          text: '🔍 キーワードで検索できます！\n\n検索したいキーワードを入力してください。\n（例：「保育」「養育費」「就職」など）\n\nまたは種別から選ぶこともできます👇',
           quickReply: {
-            items: catNames.slice(0, 13).map(c => ({
-              type: 'action' as const,
-              action: { type: 'postback' as const, label: c.length > 20 ? c.substring(0, 20) : c, data: `action=search_all&cat=${c}`, displayText: c },
-            })),
+            items: [
+              ...catNames.slice(0, 12).map(c => ({
+                type: 'action' as const,
+                action: { type: 'postback' as const, label: c.length > 20 ? c.substring(0, 20) : c, data: `action=search_all&cat=${c}`, displayText: c },
+              })),
+            ],
           },
         } as TextMessage]
       })
@@ -544,6 +605,13 @@ async function handleMessage(event: MessageEvent, client: messagingApi.Messaging
   const userSnap = await db.collection('users').doc(lineUserId).get()
   if (!userSnap.exists) return
   const userData = userSnap.data()!
+
+  // キーワード検索待ち状態のチェック（オンボーディングより優先）
+  if (userData.pendingAction === 'keyword_search') {
+    await db.collection('users').doc(lineUserId).update({ pendingAction: admin.firestore.FieldValue.delete() })
+    await handleKeywordSearch(event, client, text)
+    return
+  }
 
   // オンボーディング中
   if (userData.onboardingStatus === 'in_progress') {
