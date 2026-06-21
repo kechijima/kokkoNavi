@@ -78,7 +78,7 @@
 </template>
 
 <script setup lang="ts">
-import { doc, getDoc } from 'firebase/firestore'
+import { doc, getDoc, updateDoc, increment } from 'firebase/firestore'
 
 definePageMeta({ layout: false, middleware: [] })
 
@@ -115,9 +115,12 @@ const relatedLinks = computed<string[]>(() => {
 
 onMounted(async () => {
   try {
-    const snap = await getDoc(doc(db, 'contents', id))
+    const ref = doc(db, 'contents', id)
+    const snap = await getDoc(ref)
     if (snap.exists() && snap.data().status === 'published') {
       content.value = snap.data()
+      // 閲覧数をインクリメント（エラーは無視）
+      updateDoc(ref, { views: increment(1) }).catch(() => {})
     }
   } catch {
     // not found

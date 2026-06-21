@@ -51,18 +51,18 @@
         </div>
       </div>
 
-      <!-- 検索結果 -->
-      <div v-if="loading" class="space-y-3">
+      <!-- 読み込み中 -->
+      <div v-if="initialLoading" class="space-y-3">
         <div v-for="i in 4" :key="i" class="h-28 bg-white rounded-2xl animate-pulse" />
       </div>
 
-      <div v-else-if="searched && results.length === 0" class="bg-white rounded-2xl p-8 text-center text-gray-400">
+      <div v-else-if="!initialLoading && searched && results.length === 0" class="bg-white rounded-2xl p-8 text-center text-gray-400">
         <p class="text-3xl mb-2">🔍</p>
         <p class="text-sm">「{{ displayQuery }}」に一致するコンテンツが見つかりませんでした</p>
         <p class="text-xs mt-1">別のキーワードでお試しください</p>
       </div>
 
-      <div v-else-if="results.length > 0" class="space-y-3">
+      <div v-else-if="!initialLoading && searched && results.length > 0" class="space-y-3">
         <p class="text-xs text-gray-500 px-1">
           <span v-if="displayQuery">「{{ displayQuery }}」の検索結果</span>
           <span v-else>{{ selectedCategory || 'すべての' }}コンテンツ</span>
@@ -91,18 +91,21 @@
         </NuxtLink>
       </div>
 
-      <!-- 初期状態：全コンテンツを種別別に表示 -->
-      <div v-else-if="!searched && allContents.length > 0" class="space-y-3">
-        <p class="text-xs text-gray-500 px-1">{{ allContents.length }}件のコンテンツがあります</p>
+      <!-- デフォルト表示：閲覧数の多い順 -->
+      <div v-else-if="!initialLoading && !searched" class="space-y-3">
+        <p class="text-xs text-gray-500 px-1">👁 よく読まれているコンテンツ（{{ allContents.length }}件）</p>
         <NuxtLink
-          v-for="item in allContents"
+          v-for="item in popularContents"
           :key="item.id"
           :to="`/p/${item.id}`"
           class="block bg-white rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-shadow"
         >
           <img v-if="item.imageUrl" :src="item.imageUrl" class="w-full h-32 object-cover" alt="" />
           <div class="p-4">
-            <p class="text-xs text-peach-500 mb-1">📂 {{ item.category }}</p>
+            <div class="flex items-center justify-between mb-1">
+              <p class="text-xs text-peach-500">📂 {{ item.category }}</p>
+              <p v-if="item.views" class="text-xs text-gray-400">👁 {{ item.views }}回</p>
+            </div>
             <p class="text-sm font-bold text-gray-800 leading-snug">{{ item.title }}</p>
             <p class="text-xs text-gray-500 mt-1.5 line-clamp-2">{{ stripHtml(item.body) }}</p>
           </div>
@@ -122,11 +125,17 @@ const { db } = useFirebase()
 
 const keyword = ref((route.query.q as string) ?? '')
 const selectedCategory = ref((route.query.cat as string) ?? '')
-const loading = ref(false)
+const initialLoading = ref(true)
+const searchLoading = ref(false)
 const searched = ref(false)
 const results = ref<any[]>([])
 const allContents = ref<any[]>([])
 const categories = ref<string[]>([])
+
+// デフォルト表示：閲覧数の多い順
+const popularContents = computed(() =>
+  [...allContents.value].sort((a: any, b: any) => (b.views ?? 0) - (a.views ?? 0))
+)
 
 const displayQuery = computed(() => {
   const parts = []
@@ -137,62 +146,54 @@ const displayQuery = computed(() => {
 
 const stripHtml = (html: string) => String(html ?? '').replace(/<[^>]*>/g, '')
 
-const doSearch = async () => {
+const doSearch = () => {
   const kw = keyword.value.trim().toLowerCase()
   const cat = selectedCategory.value
-  loading.value = true
   searched.value = true
-  try {
-    const snap = await getDocs(query(collection(db, 'contents'), where('status', '==', 'published'), orderBy('updatedAt', 'desc')))
-    const all = snap.docs.map(d => ({ id: d.id, ...d.data() }))
-    results.value = all.filter((item: any) => {
-      if (cat && item.category !== cat) return false
-      if (!kw) return true
-      const title = String(item.title ?? '').toLowerCase()
-      const body = stripHtml(item.body ?? '').toLowerCase()
-      const category = String(item.category ?? '').toLowerCase()
-      const tags: string[] = (item.tags ?? []).map((t: string) => t.toLowerCase())
-      return title.includes(kw) || body.includes(kw) || category.includes(kw) || tags.some(t => t.includes(kw))
-    })
-  } finally {
-    loading.value = false
-  }
+  results.value = allContents.value.filter((item: any) => {
+    if (cat && item.category !== cat) return false
+    if (!kw) return true
+    const title = String(item.title ?? '').toLowerCase()
+    const body = stripHtml(item.body ?? '').toLowerCase()
+    const category = String(item.category ?? '').toLowerCase()
+    const tags: string[] = (item.tags ?? []).map((t: string) => t.toLowerCase())
+    return title.includes(kw) || body.includes(kw) || category.includes(kw) || tags.some(t => t.includes(kw))
+  })
 }
 
-// 種別変更で自動検索
-watch(selectedCategory, () => {
-  if (searched.value || keyword.value.trim()) doSearch()
-  else if (selectedCategory.value) doSearch()
-})
+// 種別変更で自動的に絞り込み
+watch(selectedCategory, () => doSearch())
 
 onMounted(async () => {
-  // コンテンツ取得
-  const contentsSnap = await getDocs(
-    query(collection(db, 'contents'), where('status', '==', 'published'), orderBy('updatedAt', 'desc'))
-  )
-  allContents.value = contentsSnap.docs.map(d => ({ id: d.id, ...d.data() }))
-
-  // 種別一覧: categoriesコレクションを試みて失敗/空ならコンテンツから抽出
   try {
-    const catSnap = await getDocs(query(collection(db, 'categories'), orderBy('order', 'asc')))
-    if (!catSnap.empty) {
-      categories.value = catSnap.docs.map(d => (d.data() as any).name as string)
-    }
-  } catch (e) {
-    console.warn('categories取得失敗:', e)
-  }
-  // categoriesが取得できなかった場合はコンテンツのcategoryフィールドから重複除去して生成
-  if (categories.value.length === 0) {
-    const seen = new Set<string>()
-    for (const item of allContents.value as any[]) {
-      if (item.category && !seen.has(item.category)) {
-        seen.add(item.category)
-        categories.value.push(item.category)
+    // orderByなし（複合インデックス不要）で全公開コンテンツを取得
+    const contentsSnap = await getDocs(
+      query(collection(db, 'contents'), where('status', '==', 'published'))
+    )
+    allContents.value = contentsSnap.docs.map(d => ({ id: d.id, ...d.data() }))
+
+    // 種別一覧: categoriesコレクション → 失敗したらコンテンツから抽出
+    try {
+      const catSnap = await getDocs(query(collection(db, 'categories'), orderBy('order', 'asc')))
+      if (!catSnap.empty) {
+        categories.value = catSnap.docs.map(d => (d.data() as any).name as string)
+      }
+    } catch {}
+
+    if (categories.value.length === 0) {
+      const seen = new Set<string>()
+      for (const item of allContents.value as any[]) {
+        if (item.category && !seen.has(item.category)) {
+          seen.add(item.category)
+          categories.value.push(item.category as string)
+        }
       }
     }
-  }
 
-  // URLパラメータに検索語があれば自動実行
-  if (keyword.value || selectedCategory.value) doSearch()
+    // URLパラメータに検索語・種別があれば自動実行
+    if (keyword.value || selectedCategory.value) doSearch()
+  } finally {
+    initialLoading.value = false
+  }
 })
 </script>
