@@ -42,8 +42,9 @@
               <span v-for="tag in seg.conditions.anyTags" :key="tag" class="badge badge-gray">{{ tag }}</span>
             </div>
           </div>
-          <div v-if="seg.conditions?.includeOnboarding" class="text-sm">
-            <span class="badge badge-blue text-xs">回答中も含む</span>
+          <div class="text-xs mt-1">
+            <span v-if="seg.conditions?.includeOnboarding" class="badge badge-blue">回答中も含む</span>
+            <span v-else class="text-gray-400">完了済みのみ</span>
           </div>
         </div>
         <div class="flex flex-wrap gap-2 mt-4 pt-3 border-t border-gray-50">
@@ -139,11 +140,15 @@
                 class="badge badge-gray text-xs cursor-pointer hover:bg-blue-100 hover:text-blue-700 transition-colors"
               >+ {{ t.name }}</button>
             </div>
-            <!-- 回答中を含む（OR条件時のみ有効） -->
-            <label v-if="newSeg.anyTags.length > 0" class="flex items-center gap-2 cursor-pointer mt-1">
+          </div>
+
+          <!-- 回答中を含む（条件に関係なく設定可） -->
+          <div class="pt-1 border-t border-gray-100">
+            <label class="flex items-center gap-2 cursor-pointer">
               <input v-model="newSeg.includeOnboarding" type="checkbox" class="rounded text-peach-500" />
-              <span class="text-sm text-gray-700">回答中の方も含む（オンボーディング未完了のユーザーも対象にする）</span>
+              <span class="text-sm text-gray-700">回答中の方も含む</span>
             </label>
+            <p class="text-xs text-gray-400 mt-1 ml-6">チェックを入れると、オンボーディング回答中のユーザーも配信対象になります</p>
           </div>
         </div>
 
@@ -188,6 +193,9 @@ const newSeg = ref({
 })
 
 function matchSegment(userData: any, conditions: any): boolean {
+  // 回答中を含まない場合は完了済みのみ対象
+  if (!conditions.includeOnboarding && userData.onboardingStatus !== 'completed') return false
+
   if (conditions.tags?.length) {
     const userTags = userData.tags ?? []
     if (!conditions.tags.every((t: string) => userTags.includes(t))) return false
@@ -195,10 +203,7 @@ function matchSegment(userData: any, conditions: any): boolean {
 
   if (conditions.anyTags?.length) {
     const userTags = userData.tags ?? []
-    const hasAny = conditions.anyTags.some((t: string) => userTags.includes(t))
-    if (!hasAny) return false
-    // OR条件で「回答中を含まない」場合は完了済みのみ
-    if (!conditions.includeOnboarding && userData.onboardingStatus !== 'completed') return false
+    if (!conditions.anyTags.some((t: string) => userTags.includes(t))) return false
   }
 
   return true
@@ -239,12 +244,11 @@ const saveSegment = async () => {
   if (!newSeg.value.name.trim()) return
   saving.value = true
   try {
-    const conditions: any = {}
-    if (newSeg.value.tags.length) conditions.tags = newSeg.value.tags
-    if (newSeg.value.anyTags.length) {
-      conditions.anyTags = newSeg.value.anyTags
-      conditions.includeOnboarding = newSeg.value.includeOnboarding
+    const conditions: any = {
+      includeOnboarding: newSeg.value.includeOnboarding,
     }
+    if (newSeg.value.tags.length) conditions.tags = newSeg.value.tags
+    if (newSeg.value.anyTags.length) conditions.anyTags = newSeg.value.anyTags
 
     if (editingId.value) {
       await updateDoc(doc(db, 'segments', editingId.value), {
