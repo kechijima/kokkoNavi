@@ -166,15 +166,31 @@ watch(selectedCategory, () => {
 })
 
 onMounted(async () => {
-  // 種別一覧取得
-  const [catSnap, contentsSnap] = await Promise.all([
-    getDocs(query(collection(db, 'categories'), orderBy('order', 'asc'))),
-    getDocs(query(collection(db, 'contents'), where('status', '==', 'published'), orderBy('updatedAt', 'desc'))),
-  ])
-  categories.value = catSnap.empty
-    ? ['子育て支援', '住居支援', '就労支援', '経済支援', '法律・権利']
-    : catSnap.docs.map(d => (d.data() as any).name as string)
+  // コンテンツ取得
+  const contentsSnap = await getDocs(
+    query(collection(db, 'contents'), where('status', '==', 'published'), orderBy('updatedAt', 'desc'))
+  )
   allContents.value = contentsSnap.docs.map(d => ({ id: d.id, ...d.data() }))
+
+  // 種別一覧: categoriesコレクションを試みて失敗/空ならコンテンツから抽出
+  try {
+    const catSnap = await getDocs(query(collection(db, 'categories'), orderBy('order', 'asc')))
+    if (!catSnap.empty) {
+      categories.value = catSnap.docs.map(d => (d.data() as any).name as string)
+    }
+  } catch (e) {
+    console.warn('categories取得失敗:', e)
+  }
+  // categoriesが取得できなかった場合はコンテンツのcategoryフィールドから重複除去して生成
+  if (categories.value.length === 0) {
+    const seen = new Set<string>()
+    for (const item of allContents.value as any[]) {
+      if (item.category && !seen.has(item.category)) {
+        seen.add(item.category)
+        categories.value.push(item.category)
+      }
+    }
+  }
 
   // URLパラメータに検索語があれば自動実行
   if (keyword.value || selectedCategory.value) doSearch()
