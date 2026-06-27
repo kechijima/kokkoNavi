@@ -17,7 +17,8 @@ import fs from 'fs'
 import path from 'path'
 import https from 'https'
 
-const TOKEN = 'BrFVg6Mnm5iqKVw1Ui9cQW89mzILB/dlYXnu8ClaZRoDEo1EawW5+MimR/l7SVKybQFyG2EI/mnB9sZXvRo7qfNeE7GMA2ICmHSNg7AIvjLbLgDllYjQFKxjzCGJ5u5P92xe/Fh/24Kk1naS9h1dVgdB04t89/1O/w1cDnyilFU='
+// トークンは環境変数 LINE_CHANNEL_ACCESS_TOKEN を優先（埋め込み値は失効している可能性あり）
+const TOKEN = process.env.LINE_CHANNEL_ACCESS_TOKEN || 'BrFVg6Mnm5iqKVw1Ui9cQW89mzILB/dlYXnu8ClaZRoDEo1EawW5+MimR/l7SVKybQFyG2EI/mnB9sZXvRo7qfNeE7GMA2ICmHSNg7AIvjLbLgDllYjQFKxjzCGJ5u5P92xe/Fh/24Kk1naS9h1dVgdB04t89/1O/w1cDnyilFU='
 const LIFF_ID = process.argv[3] || '2005378903-vm7jt4ke'
 const WEBSITE_URL = process.argv[4] || 'https://www.coccopeer.com/'
 const LIFF_DIAGNOSIS_ID = process.argv[5] || '2005378903-AQ6v2XZx'
