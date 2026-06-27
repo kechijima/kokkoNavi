@@ -63,26 +63,30 @@
 
     <!-- ボタン構成 -->
     <div class="card space-y-3">
-      <h3 class="font-semibold text-gray-700 text-sm">ボタン構成（2500×1686px）</h3>
+      <h3 class="font-semibold text-gray-700 text-sm">ボタン構成（2500×1686px・3×2の6ボタン）</h3>
       <div class="grid grid-cols-1 gap-2 text-xs text-gray-600">
         <div class="flex gap-3">
-          <div class="w-24 shrink-0 font-medium text-gray-500">左上（大）</div>
+          <div class="w-24 shrink-0 font-medium text-gray-500">上段左</div>
           <div>支援情報を探す → カテゴリ選択</div>
         </div>
         <div class="flex gap-3">
-          <div class="w-24 shrink-0 font-medium text-gray-500">右上（小）</div>
+          <div class="w-24 shrink-0 font-medium text-gray-500">上段中</div>
+          <div class="break-all">診断 → 診断LIFF（{{ config.liffDiagnosisId || '未設定' }}）</div>
+        </div>
+        <div class="flex gap-3">
+          <div class="w-24 shrink-0 font-medium text-gray-500">上段右</div>
           <div class="break-all">公式Webサイト → {{ config.websiteUrl || 'URL未設定' }}</div>
         </div>
         <div class="flex gap-3">
-          <div class="w-24 shrink-0 font-medium text-gray-500">下左</div>
+          <div class="w-24 shrink-0 font-medium text-gray-500">下段左</div>
           <div>質問・相談 → 管理者チャット</div>
         </div>
         <div class="flex gap-3">
-          <div class="w-24 shrink-0 font-medium text-gray-500">下中</div>
+          <div class="w-24 shrink-0 font-medium text-gray-500">下段中</div>
           <div>プロフィール変更 → LIFF</div>
         </div>
         <div class="flex gap-3">
-          <div class="w-24 shrink-0 font-medium text-gray-500">下右</div>
+          <div class="w-24 shrink-0 font-medium text-gray-500">下段右</div>
           <div>よくある質問 → FAQ一覧</div>
         </div>
       </div>

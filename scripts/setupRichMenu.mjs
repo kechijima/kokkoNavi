@@ -7,13 +7,13 @@
  * 画像パスを省略すると画像なしでメニュー構造のみ登録します。
  * 画像は幅2500px・高さ1686px（LINE推奨）の JPG または PNG を用意してください。
  *
- * ボタン配置（3+2レイアウト）:
+ * ボタン配置（3×2レイアウト・6ボタン）:
  *   ┌────────────┬────────────┬────────────┐
- *   │プロフィール │支援情報    │ウェブサイト│
- *   │  変更      │  を探す    │            │
- *   ├──────────────────┬──────────────────┤
- *   │   質問・相談      │  よくある質問    │
- *   └──────────────────┴──────────────────┘
+ *   │支援情報    │  診断      │公式Web     │
+ *   │  を探す    │            │サイト      │
+ *   ├────────────┼────────────┼────────────┤
+ *   │質問・相談  │プロフィール│よくある質問│
+ *   └────────────┴────────────┴────────────┘
  */
 
 import fs from 'fs'
@@ -62,17 +62,20 @@ function lineApi(method, endpoint, body, contentType = 'application/json') {
 
 // ─── リッチメニュー定義 ───────────────────────────
 
-// 画像レイアウト（2500×1686px）:
-//  上段: [支援情報を探す(2/3幅)] [公式Webサイト(1/3幅)]
-//  下段: [質問・相談] [プロフィール変更] [よくある質問]  ← 3等分
+// 画像レイアウト（2500×1686px）3列×2行の6ボタン:
+//  上段: [支援情報を探す] [診断] [公式Webサイト]
+//  下段: [質問・相談] [プロフィール変更] [よくある質問]
 
 const W = 2500
 const H = 1686
-const TOP_H = Math.round(H / 2)    // 上段高さ: 843px
-const BTM_H = H - TOP_H            // 下段高さ: 843px
-const TOP_LEFT_W = Math.round(W * 2 / 3)  // 上段左幅: 1666px
-const TOP_RIGHT_W = W - TOP_LEFT_W         // 上段右幅: 834px
-const BTM_COL = Math.round(W / 3)          // 下段列幅: 833px
+const ROW_H = Math.round(H / 2)   // 行高さ: 843px
+const C0 = 0
+const C1 = Math.round(W / 3)      // 833
+const C2 = Math.round(W * 2 / 3)  // 1667
+const COL_W = C1                  // 列幅: 833px
+const COL_W_LAST = W - C2         // 最終列幅: 833px
+
+const LIFF_DIAGNOSIS_ID = process.argv[5] || process.env.LIFF_DIAGNOSIS_ID || '2005378903-AQ6v2XZx'
 
 const richMenuBody = {
   size: { width: W, height: H },
@@ -80,29 +83,34 @@ const richMenuBody = {
   name: 'こっこナビ メインメニュー',
   chatBarText: 'メニュー',
   areas: [
-    // 上段左（大）: 支援情報を探す
+    // 上段左: 支援情報を探す
     {
-      bounds: { x: 0, y: 0, width: TOP_LEFT_W, height: TOP_H },
+      bounds: { x: C0, y: 0, width: COL_W, height: ROW_H },
       action: { type: 'postback', label: '支援情報を探す', data: 'action=search', displayText: '支援情報を探す' },
+    },
+    // 上段中: 診断（診断LIFFを開く）
+    {
+      bounds: { x: C1, y: 0, width: COL_W, height: ROW_H },
+      action: { type: 'uri', label: '診断', uri: `https://liff.line.me/${LIFF_DIAGNOSIS_ID}` },
     },
     // 上段右: 公式Webサイト
     {
-      bounds: { x: TOP_LEFT_W, y: 0, width: TOP_RIGHT_W, height: TOP_H },
+      bounds: { x: C2, y: 0, width: COL_W_LAST, height: ROW_H },
       action: { type: 'postback', label: '公式Webサイト', data: 'action=website', displayText: '公式Webサイト' },
     },
     // 下段左: 質問・相談
     {
-      bounds: { x: 0, y: TOP_H, width: BTM_COL, height: BTM_H },
+      bounds: { x: C0, y: ROW_H, width: COL_W, height: ROW_H },
       action: { type: 'postback', label: '質問・相談', data: 'action=consult', displayText: '質問・相談' },
     },
     // 下段中: プロフィール変更（LIFF）
     {
-      bounds: { x: BTM_COL, y: TOP_H, width: BTM_COL, height: BTM_H },
+      bounds: { x: C1, y: ROW_H, width: COL_W, height: ROW_H },
       action: { type: 'uri', label: 'プロフィール変更', uri: `https://liff.line.me/${LIFF_PROFILE_ID}` },
     },
     // 下段右: よくある質問
     {
-      bounds: { x: BTM_COL * 2, y: TOP_H, width: W - BTM_COL * 2, height: BTM_H },
+      bounds: { x: C2, y: ROW_H, width: COL_W_LAST, height: ROW_H },
       action: { type: 'postback', label: 'よくある質問', data: 'action=faq', displayText: 'よくある質問' },
     },
   ],
