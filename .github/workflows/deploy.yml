@@ -55,9 +55,24 @@ jobs:
           LIFF_ID: ${{ secrets.LIFF_ID }}
           LIFF_PROFILE_ID: ${{ secrets.LIFF_PROFILE_ID }}
 
-      # ── Firebase デプロイ（全リソース） ───────────────────
-      - name: Deploy to Firebase
-        run: npx firebase-tools deploy --project kokkonavi --non-interactive --force $FIREBASE_DEPLOY_ARGS
+      # ── Firebase デプロイ（hosting / firestore / storage） ─
+      - name: Deploy hosting, firestore, storage
+        run: npx firebase-tools deploy --project kokkonavi --non-interactive --force --only hosting,firestore,storage
+        env:
+          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
+
+      # ── Firebase デプロイ（Functions・失敗を検知） ─────────
+      # firebase-tools は一部Functionsの更新に失敗してもexit 0を返すため、
+      # 出力を検査して「failed to update/create function」が出たらジョブを失敗させる。
+      - name: Deploy Cloud Functions
+        if: env.FIREBASE_DEPLOY_ARGS == ''
+        run: |
+          set -o pipefail
+          npx firebase-tools deploy --project kokkonavi --non-interactive --force --only functions --debug 2>&1 | tee functions-deploy.log
+          if grep -Eiq "failed to (update|create) function|functions: failed" functions-deploy.log; then
+            echo "::error::Cloud Functions のデプロイに失敗しました。上のログを確認してください。"
+            exit 1
+          fi
         env:
           FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
 
