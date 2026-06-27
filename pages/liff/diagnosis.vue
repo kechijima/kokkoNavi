@@ -257,7 +257,8 @@ onMounted(async () => {
       return
     }
 
-    const liffId = config.public.liffId as string
+    // 診断ページ専用のLIFF IDで初期化する（URLがこのLIFFで開かれるため）
+    const liffId = (config.public.liffDiagnosisId as string) || '2005378903-AQ6v2XZx'
     if (!liffId) {
       errorMessage.value = 'LIFF IDが設定されていません'
       status.value = 'error'
