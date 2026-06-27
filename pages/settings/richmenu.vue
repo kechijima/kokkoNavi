@@ -114,7 +114,7 @@ const config = ref({
 })
 
 const scriptCommand = computed(() =>
-  `node scripts/uploadRichMenuImage.mjs <画像ファイルパス> ${config.value.liffProfileId}`
+  `node scripts/uploadRichMenuImage.mjs <画像ファイルパス> ${config.value.liffProfileId} ${config.value.websiteUrl} ${config.value.liffDiagnosisId}`
 )
 
 const saveConfig = async () => {
