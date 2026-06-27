@@ -5,6 +5,12 @@ on:
     branches:
       - main
 
+# デプロイ同士の競合（Cloud Functionsの "operation already in progress"）を防ぐため
+# 同時に1つだけ実行し、新しい実行は前の実行の完了を待つ（キャンセルしない）。
+concurrency:
+  group: firebase-deploy
+  cancel-in-progress: false
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
@@ -61,12 +67,27 @@ jobs:
       - name: Deploy Cloud Functions
         if: env.FIREBASE_DEPLOY_ARGS == ''
         run: |
-          set -o pipefail
-          npx firebase-tools deploy --project kokkonavi --non-interactive --force --only functions --debug 2>&1 | tee functions-deploy.log
-          if grep -Eiq "failed to (update|create) function|functions: failed" functions-deploy.log; then
-            echo "::error::Cloud Functions のデプロイに失敗しました。上のログを確認してください。"
-            exit 1
-          fi
+          set +e
+          attempt=1
+          max=5
+          while [ $attempt -le $max ]; do
+            echo "=== Functions デプロイ試行 $attempt/$max ==="
+            npx firebase-tools deploy --project kokkonavi --non-interactive --force --only functions 2>&1 | tee functions-deploy.log
+            if grep -Eiq "failed to (update|create) function|functions: failed|already in progress" functions-deploy.log; then
+              if grep -Eiq "already in progress" functions-deploy.log; then
+                echo "別のデプロイ操作が進行中のため ${attempt} 回目を待機して再試行します..."
+              else
+                echo "Functions更新に失敗。再試行します..."
+              fi
+              attempt=$((attempt+1))
+              sleep 60
+              continue
+            fi
+            echo "✅ Functions デプロイ成功"
+            exit 0
+          done
+          echo "::error::Cloud Functions のデプロイが ${max} 回試行しても失敗しました。"
+          exit 1
         env:
           FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
 
