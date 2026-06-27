@@ -383,6 +383,8 @@ async function handleKeywordSearch(event: MessageEvent, client: messagingApi.Mes
 
 // 診断LIFFのURLを取得（settings/richmenuの専用LIFF ID優先、なければ共通LIFFのパス付き）
 async function getDiagnosisUrl(): Promise<string> {
+  // 診断専用LIFFのデフォルトID（管理画面で上書き可能）
+  const DEFAULT_DIAGNOSIS_LIFF_ID = '2005378903-AQ6v2XZx'
   try {
     const snap = await db.collection('settings').doc('richmenu').get()
     const liffDiagnosisId = snap.exists ? (snap.data()?.liffDiagnosisId as string) : ''
@@ -390,8 +392,7 @@ async function getDiagnosisUrl(): Promise<string> {
   } catch (e) {
     console.warn('診断LIFF ID取得失敗:', e)
   }
-  const liffId = process.env.LIFF_ID ?? ''
-  return liffId ? `https://liff.line.me/${liffId}/liff/diagnosis` : 'https://kokkonavi.web.app/liff/diagnosis'
+  return `https://liff.line.me/${DEFAULT_DIAGNOSIS_LIFF_ID}`
 }
 
 // ─── Postback（リッチメニューボタン） ───────────

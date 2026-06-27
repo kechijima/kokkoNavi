@@ -106,7 +106,7 @@ const config = ref({
   websiteUrl: 'https://www.coccopeer.com/',
   liffProfileId: '2005378903-LXWyy1H1',
   liffOnboardingId: '2005378903-vm7jt4ke',
-  liffDiagnosisId: '',
+  liffDiagnosisId: '2005378903-AQ6v2XZx',
 })
 
 const scriptCommand = computed(() =>
