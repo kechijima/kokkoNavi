@@ -30,7 +30,10 @@
             </div>
           </div>
           <div class="flex-1 min-w-0">
-            <p class="font-medium text-gray-800 text-sm truncate">{{ user.displayName }}</p>
+            <div class="flex items-center gap-1.5">
+              <p class="font-medium text-gray-800 text-sm truncate">{{ user.displayName }}</p>
+              <span v-if="user.hasPendingConsultation" class="flex-shrink-0 text-[10px] bg-red-500 text-white px-1.5 py-0.5 rounded-full font-medium">相談希望</span>
+            </div>
             <p class="text-xs text-gray-400 truncate">{{ user.lastMessage ?? 'メッセージなし' }}</p>
           </div>
         </div>
@@ -157,6 +160,11 @@ const selectUser = (user: any) => {
   selectedUserId.value = user.id
   selectedUser.value = user
   messages.value = []
+
+  // 相談希望フラグをクリア（開いたら対応済みとみなす）
+  if (user.hasPendingConsultation) {
+    updateDoc(doc(db, 'users', user.id), { hasPendingConsultation: false }).catch(() => {})
+  }
 
   if (unsubMessages) unsubMessages()
 
