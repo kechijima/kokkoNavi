@@ -52,6 +52,12 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
+    // 診断フロー（管理者のみ書き込み、LIFFから読み取り可）
+    match /diagnosis_flows/{flowId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
     // タグマスター（管理者のみ）
     match /tags/{tagId} {
       allow read, write: if isAdmin();

@@ -511,6 +511,27 @@ async function handlePostback(event: PostbackEvent, client: messagingApi.Messagi
     case 'events':
       await handleEventSearch(event, client, {})
       break
+
+    // おすすめ診断 → 診断LIFFを開く
+    case 'diagnosis': {
+      const liffId = process.env.LIFF_ID ?? ''
+      const diagnosisUrl = liffId ? `https://liff.line.me/${liffId}/liff/diagnosis` : 'https://kokkonavi.web.app/liff/diagnosis'
+      await client.replyMessage({
+        replyToken: event.replyToken,
+        messages: [{
+          type: 'template',
+          altText: 'おすすめ診断',
+          template: {
+            type: 'buttons',
+            text: '🧭 かんたんな質問に答えるだけで、あなたに合った支援の受け方をご案内します！',
+            actions: [
+              { type: 'uri', label: '🧭 診断をはじめる', uri: diagnosisUrl },
+            ],
+          },
+        }]
+      })
+      break
+    }
   }
 }
 
@@ -639,6 +660,24 @@ async function handleMessage(event: MessageEvent, client: messagingApi.Messaging
   const keywords: Record<string, () => Promise<void>> = {
     'よくある質問': () => handleFaq(event, client),
     'イベント': () => handleEventSearch(event, client, {}),
+    '診断': async () => {
+      const liffId = process.env.LIFF_ID ?? ''
+      const diagnosisUrl = liffId ? `https://liff.line.me/${liffId}/liff/diagnosis` : 'https://kokkonavi.web.app/liff/diagnosis'
+      await client.replyMessage({
+        replyToken: event.replyToken,
+        messages: [{
+          type: 'template',
+          altText: 'おすすめ診断',
+          template: {
+            type: 'buttons',
+            text: '🧭 かんたんな質問に答えるだけで、あなたに合った支援の受け方をご案内します！',
+            actions: [
+              { type: 'uri', label: '🧭 診断をはじめる', uri: diagnosisUrl },
+            ],
+          },
+        }]
+      })
+    },
     '公式Webサイト': async () => {
       await client.replyMessage({
         replyToken: event.replyToken,
