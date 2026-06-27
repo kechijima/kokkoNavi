@@ -27,6 +27,14 @@
         <input v-model="config.liffOnboardingId" type="text" class="input" placeholder="例: 2005378903-XXXXXXXX" />
       </div>
 
+      <div>
+        <label class="block text-sm font-medium text-gray-700 mb-1.5">おすすめ診断 LIFF ID</label>
+        <input v-model="config.liffDiagnosisId" type="text" class="input" placeholder="例: 2005378903-XXXXXXXX" />
+        <p class="text-xs text-gray-400 mt-1">
+          LINE Developersで <code class="bg-gray-100 px-1 rounded">https://kokkonavi.web.app/liff/diagnosis</code> をエンドポイントにしたLIFFアプリを作成し、そのLIFF IDを入力してください。
+        </p>
+      </div>
+
       <button @click="saveConfig" class="btn-primary" :disabled="saving">
         {{ saving ? '保存中...' : '設定を保存' }}
       </button>
@@ -78,6 +86,10 @@
           <div>よくある質問 → FAQ一覧</div>
         </div>
       </div>
+      <div class="mt-3 pt-3 border-t border-gray-100 text-xs text-gray-500">
+        <p class="font-medium text-gray-600 mb-1">🧭 おすすめ診断について</p>
+        <p>診断はリッチメニューのボタンに <code class="bg-gray-100 px-1 rounded">action=diagnosis</code> のポストバック、または上で設定した「おすすめ診断 LIFF ID」のLIFF URLを割り当てて開きます。「診断」とトークに送っても案内が表示されます。</p>
+      </div>
     </div>
   </div>
 </template>
@@ -94,6 +106,7 @@ const config = ref({
   websiteUrl: 'https://www.coccopeer.com/',
   liffProfileId: '2005378903-LXWyy1H1',
   liffOnboardingId: '2005378903-vm7jt4ke',
+  liffDiagnosisId: '',
 })
 
 const scriptCommand = computed(() =>
@@ -129,6 +142,7 @@ onMounted(async () => {
       websiteUrl: data.websiteUrl ?? config.value.websiteUrl,
       liffProfileId: data.liffProfileId ?? config.value.liffProfileId,
       liffOnboardingId: data.liffOnboardingId ?? config.value.liffOnboardingId,
+      liffDiagnosisId: data.liffDiagnosisId ?? config.value.liffDiagnosisId,
     }
   }
 })

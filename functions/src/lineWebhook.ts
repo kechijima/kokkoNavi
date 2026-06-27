@@ -381,6 +381,19 @@ async function handleKeywordSearch(event: MessageEvent, client: messagingApi.Mes
   })
 }
 
+// 診断LIFFのURLを取得（settings/richmenuの専用LIFF ID優先、なければ共通LIFFのパス付き）
+async function getDiagnosisUrl(): Promise<string> {
+  try {
+    const snap = await db.collection('settings').doc('richmenu').get()
+    const liffDiagnosisId = snap.exists ? (snap.data()?.liffDiagnosisId as string) : ''
+    if (liffDiagnosisId) return `https://liff.line.me/${liffDiagnosisId}`
+  } catch (e) {
+    console.warn('診断LIFF ID取得失敗:', e)
+  }
+  const liffId = process.env.LIFF_ID ?? ''
+  return liffId ? `https://liff.line.me/${liffId}/liff/diagnosis` : 'https://kokkonavi.web.app/liff/diagnosis'
+}
+
 // ─── Postback（リッチメニューボタン） ───────────
 
 async function handlePostback(event: PostbackEvent, client: messagingApi.MessagingApiClient) {
@@ -514,8 +527,7 @@ async function handlePostback(event: PostbackEvent, client: messagingApi.Messagi
 
     // おすすめ診断 → 診断LIFFを開く
     case 'diagnosis': {
-      const liffId = process.env.LIFF_ID ?? ''
-      const diagnosisUrl = liffId ? `https://liff.line.me/${liffId}/liff/diagnosis` : 'https://kokkonavi.web.app/liff/diagnosis'
+      const diagnosisUrl = await getDiagnosisUrl()
       await client.replyMessage({
         replyToken: event.replyToken,
         messages: [{
@@ -661,8 +673,7 @@ async function handleMessage(event: MessageEvent, client: messagingApi.Messaging
     'よくある質問': () => handleFaq(event, client),
     'イベント': () => handleEventSearch(event, client, {}),
     '診断': async () => {
-      const liffId = process.env.LIFF_ID ?? ''
-      const diagnosisUrl = liffId ? `https://liff.line.me/${liffId}/liff/diagnosis` : 'https://kokkonavi.web.app/liff/diagnosis'
+      const diagnosisUrl = await getDiagnosisUrl()
       await client.replyMessage({
         replyToken: event.replyToken,
         messages: [{
