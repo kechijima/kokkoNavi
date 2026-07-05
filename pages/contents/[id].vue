@@ -35,17 +35,19 @@
         <RichTextEditor v-model="form.body" placeholder="コンテンツの内容を入力..." />
       </div>
 
-      <!-- 関連リンクURL（複数設定可・公開ページに表示される） -->
+      <!-- 公開URL（自動生成） -->
       <div>
-        <label class="block text-sm font-medium text-gray-700 mb-1.5">関連リンクURL</label>
-        <div class="space-y-2">
-          <div v-for="(link, i) in customLinks" :key="i" class="flex gap-2">
-            <input v-model="customLinks[i]" type="url" class="input flex-1" placeholder="https://..." />
-            <button type="button" @click="customLinks.splice(i, 1)" class="btn-ghost px-3 py-2 text-gray-400 hover:text-red-400">✕</button>
-          </div>
-          <button type="button" @click="customLinks.push('')" class="text-sm text-peach-500 hover:text-peach-600 font-medium">＋ リンクを追加</button>
+        <label class="block text-sm font-medium text-gray-700 mb-1.5">公開URL</label>
+        <div v-if="isNew" class="flex items-center gap-2 p-3 bg-gray-50 rounded-xl border border-gray-100">
+          <span class="text-xs text-gray-400">保存すると自動でURLが発行されます</span>
         </div>
-        <p class="text-xs text-gray-400 mt-1">公開ページに「関連リンク」として表示されます。LINEの「全文を読む」は公開ページに遷移します。</p>
+        <div v-else class="flex items-center gap-2 p-3 bg-peach-50 rounded-xl border border-peach-100">
+          <span class="text-sm text-peach-600 flex-1 truncate">🔗 {{ publicUrl }}</span>
+          <a :href="publicUrl" target="_blank" class="btn-ghost text-xs px-2 py-1 text-gray-500 hover:text-peach-600">開く</a>
+          <button type="button" @click="copyUrl" class="btn-secondary text-xs px-3 py-1 whitespace-nowrap">
+            {{ copied ? '✓ コピー済' : '📋 コピー' }}
+          </button>
+        </div>
       </div>
 
       <div>
@@ -140,13 +142,6 @@
             v-html="form.body || '<span class=\'text-gray-400\'>（本文未入力）</span>'"
           />
           <div v-else class="bg-white rounded-xl p-5 shadow-sm text-sm text-gray-700 leading-relaxed whitespace-pre-line">{{ form.body || '（本文未入力）' }}</div>
-          <!-- 関連リンクプレビュー -->
-          <template v-for="link in customLinks.filter(l => l.trim())" :key="link">
-            <div class="bg-white rounded-xl p-4 shadow-sm border border-peach-100">
-              <p class="text-xs text-gray-400 mb-1">🔗 関連リンク</p>
-              <p class="text-sm text-peach-600 underline break-all">{{ link }}</p>
-            </div>
-          </template>
           <div v-if="form.tags.length" class="flex flex-wrap gap-2 pt-2">
             <span
               v-for="tag in form.tags"
@@ -236,8 +231,20 @@ const form = ref({
   tags: [] as string[],
 })
 
-// 関連リンクURL一覧（複数設定可）
-const customLinks = ref<string[]>([])
+// 公開URL（編集時に自動生成URLを表示）
+const publicUrl = computed(() =>
+  isNew ? '' : `${(typeof window !== 'undefined' && window.location?.origin) || 'https://kokkonavi.web.app'}/p/${id}`,
+)
+const copied = ref(false)
+const copyUrl = async () => {
+  try {
+    await navigator.clipboard.writeText(publicUrl.value)
+    copied.value = true
+    setTimeout(() => { copied.value = false }, 2000)
+  } catch {
+    alert('コピーに失敗しました: ' + publicUrl.value)
+  }
+}
 
 const toggleTag = (name: string) => {
   const idx = form.value.tags.indexOf(name)
@@ -258,20 +265,20 @@ const save = async () => {
   saving.value = true
   try {
     const base = 'https://kokkonavi.web.app'
-    const validLinks = customLinks.value.map(l => l.trim()).filter(Boolean)
     if (isNew) {
       const docRef = await addDoc(collection(db, 'contents'), {
         ...form.value,
         linkUrl: '__pending__',
-        linkUrls: validLinks,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
       })
+      // 生成されたIDで公開URLを自動設定
       await updateDoc(docRef, { linkUrl: `${base}/p/${docRef.id}` })
     } else {
       await updateDoc(doc(db, 'contents', id), {
         ...form.value,
-        linkUrls: validLinks,
+        // 公開URLは常に自動生成URLに統一
+        linkUrl: `${base}/p/${id}`,
         updatedAt: serverTimestamp(),
       })
     }
@@ -298,23 +305,12 @@ onMounted(async () => {
     const snap = await getDoc(doc(db, 'contents', id))
     if (snap.exists()) {
       const data = snap.data()
-      const existingLinkUrl = data.linkUrl ?? ''
-      // linkUrls配列があればそれを使用。なければ旧linkUrlをマイグレーション
-      if (Array.isArray(data.linkUrls) && data.linkUrls.length > 0) {
-        customLinks.value = [...data.linkUrls]
-      } else if (
-        existingLinkUrl &&
-        existingLinkUrl !== '__pending__' &&
-        !existingLinkUrl.match(/\/p\/[a-zA-Z0-9]+$/)
-      ) {
-        customLinks.value = [existingLinkUrl]
-      }
       form.value = {
         title: data.title ?? '',
         body: data.body ?? '',
         category: data.category ?? '',
         status: data.status ?? 'draft',
-        linkUrl: existingLinkUrl,
+        linkUrl: data.linkUrl ?? '',
         imageUrl: data.imageUrl ?? '',
         tags: data.tags ?? [],
       }
