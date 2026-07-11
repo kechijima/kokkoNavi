@@ -193,7 +193,11 @@ const finish = async () => {
     console.warn('診断結果の保存に失敗:', e)
   }
 
+  // 顧客のトークに残す診断結果メッセージ（Cloud Functionがこれをプッシュ送信）
+  const summary = `【診断結果】\nおすすめ: ${resultTypeLabel[result.value.type]}\n重要度スコア: ${totalScore.value}点\n\n${result.value.message}`
+
   // 診断履歴（利用状況の確認用）を記録
+  //   → onCreateトリガーで顧客へプッシュ送信される
   try {
     await addDoc(collection(db, 'diagnosis_results'), {
       userId: lineUserId.value,
@@ -204,21 +208,11 @@ const finish = async () => {
       result: result.value.type,
       resultLabel: resultTypeLabel[result.value.type] ?? '',
       questionCount: flow.value.questions.length,
+      pushMessage: summary,
       createdAt: serverTimestamp(),
     })
   } catch (e) {
     console.warn('診断履歴の保存に失敗:', e)
-  }
-
-  // 顧客のトーク画面にも診断結果を残す（LIFFのメッセージ機能）
-  try {
-    const liff = (window as any).liff
-    const summary = `【診断結果】\nおすすめ: ${resultTypeLabel[result.value.type]}\n重要度スコア: ${totalScore.value}点\n\n${result.value.message}`
-    if (liff?.isApiAvailable?.('sendMessages')) {
-      await liff.sendMessages([{ type: 'text', text: summary }])
-    }
-  } catch (e) {
-    console.warn('診断結果メッセージの送信に失敗:', e)
   }
 }
 
