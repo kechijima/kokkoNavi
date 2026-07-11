@@ -114,7 +114,7 @@
 </template>
 
 <script setup lang="ts">
-import { collection, query, where, getDocs, doc, setDoc, updateDoc, getDoc, serverTimestamp } from 'firebase/firestore'
+import { collection, query, where, getDocs, doc, setDoc, updateDoc, getDoc, addDoc, serverTimestamp } from 'firebase/firestore'
 
 definePageMeta({ layout: false, middleware: [] })
 
@@ -170,24 +170,55 @@ const goBack = () => {
   if (currentIndex.value > 0) currentIndex.value--
 }
 
+const resultTypeLabel: Record<string, string> = {
+  content: 'コンテンツ情報のご案内',
+  chat: 'チャット相談のご案内',
+  online: 'オンライン相談のご案内',
+}
+
 const finish = async () => {
   status.value = 'result'
+  const at = new Date().toISOString()
   // 診断結果をユーザーに記録
   try {
     const userRef = doc(db, 'users', lineUserId.value)
     const snap = await getDoc(userRef)
     const data = {
-      lastDiagnosis: {
-        score: totalScore.value,
-        result: result.value.type,
-        at: new Date().toISOString(),
-      },
+      lastDiagnosis: { score: totalScore.value, result: result.value.type, at },
       updatedAt: serverTimestamp(),
     }
     if (snap.exists()) await updateDoc(userRef, data)
     else await setDoc(userRef, { displayName: displayName.value, pictureUrl: pictureUrl.value, ...data, createdAt: serverTimestamp() })
   } catch (e) {
     console.warn('診断結果の保存に失敗:', e)
+  }
+
+  // 診断履歴（利用状況の確認用）を記録
+  try {
+    await addDoc(collection(db, 'diagnosis_results'), {
+      userId: lineUserId.value,
+      displayName: displayName.value,
+      pictureUrl: pictureUrl.value,
+      score: totalScore.value,
+      maxScore: flow.value.questions.reduce((s, q) => s + Math.max(0, ...q.options.map(o => o.points || 0)), 0),
+      result: result.value.type,
+      resultLabel: resultTypeLabel[result.value.type] ?? '',
+      questionCount: flow.value.questions.length,
+      createdAt: serverTimestamp(),
+    })
+  } catch (e) {
+    console.warn('診断履歴の保存に失敗:', e)
+  }
+
+  // 顧客のトーク画面にも診断結果を残す（LIFFのメッセージ機能）
+  try {
+    const liff = (window as any).liff
+    const summary = `【診断結果】\nおすすめ: ${resultTypeLabel[result.value.type]}\n重要度スコア: ${totalScore.value}点\n\n${result.value.message}`
+    if (liff?.isApiAvailable?.('sendMessages')) {
+      await liff.sendMessages([{ type: 'text', text: summary }])
+    }
+  } catch (e) {
+    console.warn('診断結果メッセージの送信に失敗:', e)
   }
 }
 

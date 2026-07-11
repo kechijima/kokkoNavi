@@ -21,6 +21,7 @@ const pageTitles: Record<string, string> = {
   '/contents': 'コンテンツ管理',
   '/segments': 'セグメント管理',
   '/broadcasts': '配信管理',
+  '/diagnostics': '診断履歴',
   '/settings/onboarding': 'オンボーディング設定',
   '/settings/admins': '管理者設定',
 }

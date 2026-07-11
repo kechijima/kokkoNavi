@@ -106,6 +106,7 @@ const navItems = [
   { path: '/events', label: 'イベント管理', icon: '📅' },
   { path: '/segments', label: 'セグメント管理', icon: '🎯' },
   { path: '/broadcasts', label: '配信管理', icon: '📢' },
+  { path: '/diagnostics', label: '診断履歴', icon: '🧭' },
 ]
 
 const settingsItems = [

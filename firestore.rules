@@ -58,6 +58,12 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
+    // 診断結果の履歴（LIFFから作成可・管理者のみ閲覧）
+    match /diagnosis_results/{resultId} {
+      allow create: if true;
+      allow read, update, delete: if isAdmin();
+    }
+
     // タグマスター（管理者のみ）
     match /tags/{tagId} {
       allow read, write: if isAdmin();

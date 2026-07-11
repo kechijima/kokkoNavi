@@ -667,6 +667,10 @@ async function handleMessage(event: MessageEvent, client: messagingApi.Messaging
     updatedAt: admin.firestore.FieldValue.serverTimestamp()
   })
 
+  // LIFF等から送られるシステムメッセージ（【診断結果】【ご相談】など）は
+  // 自動応答・オンボーディング処理の対象外とし、チャットに残すだけにする
+  if (text.startsWith('【')) return
+
   const userSnap = await db.collection('users').doc(lineUserId).get()
   if (!userSnap.exists) return
   const userData = userSnap.data()!
