@@ -499,22 +499,59 @@ async function handlePostback(event: PostbackEvent, client: messagingApi.Messagi
       })
       break
 
-    // 質問・相談
+    // 質問・相談 → まず種別を選んでもらう
     case 'consult':
-      await db.collection('conversations').doc(lineUserId)
-        .collection('messages').add({
-          text: '【質問・相談を希望しています】',
-          type: 'user',
-          timestamp: admin.firestore.FieldValue.serverTimestamp(),
-        })
       await client.replyMessage({
         replyToken: event.replyToken,
         messages: [{
           type: 'text',
-          text: '💬 ご相談を承りました！\nメッセージをお送りいただくと担当者が確認してご回答いたします😊\n\n少々お時間をいただく場合がありますが、お気軽にどうぞ！',
+          text: '💬 どのようなことについてのご相談ですか？\n下から選んでください👇',
+          quickReply: {
+            items: [
+              { type: 'action', action: { type: 'postback', label: 'アプリの使い方', data: 'action=consult_topic&t=usage', displayText: 'アプリの使い方について' } },
+              { type: 'action', action: { type: 'postback', label: 'チャット/オンライン相談', data: 'action=consult_topic&t=consult', displayText: 'チャット相談やオンライン相談について' } },
+              { type: 'action', action: { type: 'postback', label: '配信コンテンツ', data: 'action=consult_topic&t=content', displayText: '配信されるコンテンツについて' } },
+              { type: 'action', action: { type: 'postback', label: 'その他', data: 'action=consult_topic&t=other', displayText: 'その他' } },
+            ],
+          },
+        } as TextMessage]
+      })
+      break
+
+    // 質問・相談の種別選択 → 具体的な内容を送ってもらうよう促す
+    case 'consult_topic': {
+      const topic = params.get('t') ?? 'other'
+      const topicLabel: Record<string, string> = {
+        usage: 'アプリの使い方について',
+        consult: 'チャット相談やオンライン相談について',
+        content: '配信されるコンテンツについて',
+        other: 'その他',
+      }
+      const label = topicLabel[topic] ?? 'その他'
+      // 相談種別を記録（管理者が把握できるようチャットに残す）
+      await db.collection('conversations').doc(lineUserId)
+        .collection('messages').add({
+          text: `【ご相談】${label}`,
+          type: 'user',
+          timestamp: admin.firestore.FieldValue.serverTimestamp(),
+        })
+      await db.collection('users').doc(lineUserId).update({
+        lastMessage: `【ご相談】${label}`,
+        hasPendingConsultation: true,
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      })
+      const usageHint = topic === 'usage'
+        ? '\n\n※アプリ・LINEの使い方は「よくある質問」にもまとめています。あわせてご覧ください😊'
+        : ''
+      await client.replyMessage({
+        replyToken: event.replyToken,
+        messages: [{
+          type: 'text',
+          text: `「${label}」についてですね。\n\n具体的にどのようなことが知りたいか、メッセージで送ってください✍️\n担当者が確認してご回答いたします😊${usageHint}`,
         }]
       })
       break
+    }
 
     // よくある質問
     case 'faq':
@@ -574,7 +611,7 @@ async function handleFollow(event: FollowEvent, client: messagingApi.MessagingAp
       messages: [
         {
           type: 'text',
-          text: `こんにちは、${profile.displayName}さん！🌸\nこっこナビへようこそ！\n\nひとりで頑張らなくていいよ。\nあなたに寄り添う情報をお届けします💕`,
+          text: `こんにちは、${profile.displayName}さん！🌸\nこっこナビへようこそ！\n\nひとりで頑張らなくていいよ。\nあなたに寄り添う情報をお届けします💕\n\n📖 このアプリ・LINEの使い方は、メニューの「よくある質問」にまとめています。まずはそちらをご覧ください😊`,
         },
         {
           type: 'flex',
@@ -605,7 +642,7 @@ async function handleFollow(event: FollowEvent, client: messagingApi.MessagingAp
       replyToken: event.replyToken,
       messages: [{
         type: 'text',
-        text: `こんにちは、${profile.displayName}さん！🌸\nこっこナビへようこそ！`,
+        text: `こんにちは、${profile.displayName}さん！🌸\nこっこナビへようこそ！\n\n📖 このアプリ・LINEの使い方は、メニューの「よくある質問」にまとめています。まずはそちらをご覧ください😊`,
       }]
     })
   }
