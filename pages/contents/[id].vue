@@ -193,14 +193,15 @@
           <p class="text-xs text-gray-500 mb-3">LINEで「支援情報を探す」からこのコンテンツが届いたときの見え方です</p>
           <div class="bg-[#8cabd9] rounded-xl p-4 flex justify-center">
             <div class="bg-white rounded-2xl overflow-hidden shadow-md w-60">
+              <img v-if="form.imageUrl" :src="form.imageUrl" class="w-full h-32 object-cover" alt="" />
               <div class="px-4 pt-4 pb-3">
                 <p class="text-xs text-peach-500">📂 {{ form.category || 'カテゴリ未選択' }}</p>
                 <p class="text-sm font-bold text-gray-800 mt-1.5 leading-snug">{{ form.title || '（タイトル未入力）' }}</p>
-                <p class="text-xs text-gray-500 mt-1.5 leading-relaxed">{{ lineBodyPreview }}</p>
+                <p class="text-xs text-gray-500 mt-1.5 leading-relaxed">{{ lineCardSummary }}</p>
               </div>
               <div class="px-3 pb-3">
                 <div class="bg-peach-500 text-white text-sm font-medium text-center py-2.5 rounded-lg">
-                  全文を読む 📖
+                  {{ form.lineButtonLabel || '全文を読む 📖' }}
                 </div>
               </div>
             </div>
@@ -233,12 +234,6 @@ const previewMode = ref<'page' | 'line'>('page')
 // リッチエディタで作成されたHTML本文かどうか（旧プレーンテキスト記事との互換）
 const isHtmlBody = computed(() => /<[a-z][\s\S]*>/i.test(form.value.body))
 
-// LINEカードに表示される本文プレビュー（HTMLタグ除去・60文字）
-const lineBodyPreview = computed(() => {
-  const text = form.value.body.replace(/<[^>]*>/g, '').trim()
-  if (!text) return '（本文未入力）'
-  return text.substring(0, 60) + '…'
-})
 const uploadingThumb = ref(false)
 const thumbInput = ref<HTMLInputElement>()
 
