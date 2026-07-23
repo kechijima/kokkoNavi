@@ -195,16 +195,18 @@ const finish = async () => {
 
   const summary = `【診断結果】\nおすすめ: ${resultTypeLabel[result.value.type]}\n重要度スコア: ${totalScore.value}点\n\n${result.value.message}`
 
-  // ① まずユーザー本人の発言としてトークに残す（LIFF sendMessages・配信数消費なし）
+  // ① ユーザー本人の発言としてトークに送信（テスト・診断内容に関わらず送る）
+  //    判定に頼らず直接呼び、失敗理由を画面に表示して切り分けられるようにする
   let sentByUser = false
+  const liff = (window as any).liff
+  const testText = 'テスト：診断が完了しました（ユーザー発信テスト）'
   try {
-    const liff = (window as any).liff
-    if (liff?.isApiAvailable?.('sendMessages')) {
-      await liff.sendMessages([{ type: 'text', text: summary }])
-      sentByUser = true
-    }
-  } catch (e) {
-    console.warn('診断結果メッセージの送信に失敗:', e)
+    const available = liff?.isApiAvailable?.('sendMessages')
+    await liff.sendMessages([{ type: 'text', text: testText }, { type: 'text', text: summary }])
+    sentByUser = true
+    alert('ユーザー発信で送信しました！（sendMessages利用可否: ' + available + '）')
+  } catch (e: any) {
+    alert('sendMessages 失敗: ' + (e?.message ?? String(e)) + '\n利用可否: ' + (liff?.isApiAvailable?.('sendMessages')) + ' / isInClient: ' + (liff?.isInClient?.()))
   }
 
   // ② 診断履歴を記録。sendMessagesが使えなかった場合は needsPush:true にして
@@ -315,21 +317,6 @@ onMounted(async () => {
     if (!liff.isLoggedIn()) {
       liff.login()
       return
-    }
-
-    // chat_message.write スコープ未反映（sendMessages不可）の場合、
-    // 一度だけ再ログインして新スコープで再認証する（無限ループ防止にフラグ管理）
-    try {
-      const canSend = liff.isApiAvailable?.('sendMessages')
-      const alreadyTried = sessionStorage.getItem('diag_reauth') === '1'
-      const inClient = liff.isInClient?.() // トーク内から開いている場合のみ再認証（外部ブラウザは対象外）
-      if (!canSend && !alreadyTried && inClient) {
-        sessionStorage.setItem('diag_reauth', '1')
-        liff.login({ redirectUri: window.location.href })
-        return
-      }
-    } catch (e) {
-      console.warn('スコープ再認証チェックに失敗:', e)
     }
 
     const profile = await liff.getProfile()
