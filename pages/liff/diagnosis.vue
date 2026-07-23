@@ -316,6 +316,22 @@ onMounted(async () => {
       liff.login()
       return
     }
+
+    // chat_message.write スコープ未反映（sendMessages不可）の場合、
+    // 一度だけ再ログインして新スコープで再認証する（無限ループ防止にフラグ管理）
+    try {
+      const canSend = liff.isApiAvailable?.('sendMessages')
+      const alreadyTried = sessionStorage.getItem('diag_reauth') === '1'
+      const inClient = liff.isInClient?.() // トーク内から開いている場合のみ再認証（外部ブラウザは対象外）
+      if (!canSend && !alreadyTried && inClient) {
+        sessionStorage.setItem('diag_reauth', '1')
+        liff.login({ redirectUri: window.location.href })
+        return
+      }
+    } catch (e) {
+      console.warn('スコープ再認証チェックに失敗:', e)
+    }
+
     const profile = await liff.getProfile()
     lineUserId.value = profile.userId
     displayName.value = profile.displayName
