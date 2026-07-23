@@ -108,6 +108,11 @@
         </button>
 
         <button @click="closeLiff" class="btn-secondary w-full">LINEに戻る</button>
+
+        <!-- デバッグ表示（sendMessagesの結果） -->
+        <div v-if="debugInfo" class="mt-4 p-3 bg-gray-900 text-green-300 rounded-lg text-left text-xs whitespace-pre-wrap break-all">
+          {{ debugInfo }}
+        </div>
       </div>
     </div>
   </div>
@@ -126,6 +131,7 @@ interface Question { id: string; question: string; options: Option[] }
 
 const status = ref<'loading' | 'intro' | 'active' | 'result' | 'error'>('loading')
 const errorMessage = ref('')
+const debugInfo = ref('')
 const sending = ref(false)
 const lineUserId = ref('')
 const displayName = ref('')
@@ -195,18 +201,20 @@ const finish = async () => {
 
   const summary = `【診断結果】\nおすすめ: ${resultTypeLabel[result.value.type]}\n重要度スコア: ${totalScore.value}点\n\n${result.value.message}`
 
-  // ① ユーザー本人の発言としてトークに送信（テスト・診断内容に関わらず送る）
-  //    判定に頼らず直接呼び、失敗理由を画面に表示して切り分けられるようにする
+  // ① ユーザー本人の発言としてトークに送信（テスト・判定に頼らず直接呼ぶ）
+  //    結果は画面上のデバッグ欄に表示（LIFF内ブラウザはalertが出ないため）
   let sentByUser = false
   const liff = (window as any).liff
   const testText = 'テスト：診断が完了しました（ユーザー発信テスト）'
+  const avail = (() => { try { return liff?.isApiAvailable?.('sendMessages') } catch { return 'err' } })()
+  const inClient = (() => { try { return liff?.isInClient?.() } catch { return 'err' } })()
+  const os = (() => { try { return liff?.getOS?.() } catch { return 'err' } })()
   try {
-    const available = liff?.isApiAvailable?.('sendMessages')
     await liff.sendMessages([{ type: 'text', text: testText }, { type: 'text', text: summary }])
     sentByUser = true
-    alert('ユーザー発信で送信しました！（sendMessages利用可否: ' + available + '）')
+    debugInfo.value = `✅ 送信成功\nsendMessages利用可否: ${avail}\nisInClient: ${inClient}\nOS: ${os}`
   } catch (e: any) {
-    alert('sendMessages 失敗: ' + (e?.message ?? String(e)) + '\n利用可否: ' + (liff?.isApiAvailable?.('sendMessages')) + ' / isInClient: ' + (liff?.isInClient?.()))
+    debugInfo.value = `❌ sendMessages失敗\nエラー: ${e?.message ?? String(e)}\nsendMessages利用可否: ${avail}\nisInClient: ${inClient}\nOS: ${os}`
   }
 
   // ② 診断履歴を記録。sendMessagesが使えなかった場合は needsPush:true にして
