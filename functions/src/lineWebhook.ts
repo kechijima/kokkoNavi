@@ -97,33 +97,7 @@ async function handleCategorySearch(event: PostbackEvent, client: messagingApi.M
 
   const BASE_URL = 'https://kokkonavi.web.app'
 
-  const bubbles: any[] = matchedDocs.map(d => {
-    const c = d.data()
-    // コンテンツは常に公開ページ（自動生成URL）へ遷移する
-    const linkUrl = `${BASE_URL}/p/${d.id}`
-
-    return {
-      type: 'bubble',
-      size: 'kilo',
-      body: {
-        type: 'box',
-        layout: 'vertical',
-        paddingAll: 'xl',
-        contents: [
-          { type: 'text', text: `📂 ${c.category}`, size: 'xs', color: '#FF8C61' },
-          { type: 'text', text: c.title, weight: 'bold', size: 'sm', wrap: true, color: '#333333', margin: 'sm' },
-          { type: 'text', text: String(c.body ?? '').replace(/<[^>]*>/g, '').substring(0, 60) + '…', size: 'xs', wrap: true, color: '#666666', margin: 'sm' },
-        ],
-      },
-      footer: {
-        type: 'box', layout: 'vertical', paddingAll: 'lg',
-        contents: [{
-          type: 'button', height: 'sm', style: 'primary', color: '#FF8C61',
-          action: { type: 'uri', label: '全文を読む 📖', uri: linkUrl },
-        }],
-      },
-    }
-  })
+  const bubbles: any[] = matchedDocs.map(d => buildContentBubble(d, BASE_URL))
 
   await client.replyMessage({
     replyToken: event.replyToken,
@@ -142,6 +116,47 @@ function formatDate(ts: any): string {
   const d = ts.toDate?.() ?? new Date(ts)
   const pad = (n: number) => String(n).padStart(2, '0')
   return `${d.getFullYear()}/${pad(d.getMonth() + 1)}/${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`
+}
+
+// コンテンツのLINEカード（画像・説明・ボタン文言はコンテンツ編集で設定可能）
+function buildContentBubble(d: FirebaseFirestore.QueryDocumentSnapshot, baseUrl: string): any {
+  const c = d.data()
+  const linkUrl = `${baseUrl}/p/${d.id}`
+  const summary = (c.lineSummary && String(c.lineSummary).trim())
+    ? String(c.lineSummary).trim()
+    : String(c.body ?? '').replace(/<[^>]*>/g, '').substring(0, 60) + '…'
+  const buttonLabel = (c.lineButtonLabel && String(c.lineButtonLabel).trim())
+    ? String(c.lineButtonLabel).trim()
+    : '全文を読む 📖'
+
+  const bubble: any = {
+    type: 'bubble',
+    size: 'kilo',
+    body: {
+      type: 'box', layout: 'vertical', paddingAll: 'xl',
+      contents: [
+        { type: 'text', text: `📂 ${c.category ?? ''}`, size: 'xs', color: '#FF8C61' },
+        { type: 'text', text: c.title, weight: 'bold', size: 'sm', wrap: true, color: '#333333', margin: 'sm' },
+        { type: 'text', text: summary, size: 'xs', wrap: true, color: '#666666', margin: 'sm' },
+      ],
+    },
+    footer: {
+      type: 'box', layout: 'vertical', paddingAll: 'lg',
+      contents: [{
+        type: 'button', height: 'sm', style: 'primary', color: '#FF8C61',
+        action: { type: 'uri', label: buttonLabel, uri: linkUrl },
+      }],
+    },
+  }
+
+  // 画像があればカード上部に表示（イベントカードと同様の見た目）
+  if (c.imageUrl) {
+    bubble.hero = {
+      type: 'image', url: c.imageUrl, size: 'full', aspectRatio: '20:13', aspectMode: 'cover',
+      action: { type: 'uri', uri: linkUrl },
+    }
+  }
+  return bubble
 }
 
 function buildEventBubble(d: FirebaseFirestore.QueryDocumentSnapshot): any {
@@ -351,26 +366,7 @@ async function handleKeywordSearch(event: MessageEvent, client: messagingApi.Mes
   }
 
   const BASE_URL = 'https://kokkonavi.web.app'
-  const bubbles = matched.slice(0, 10).map(d => {
-    const c = d.data()
-    const bodyText = String(c.body ?? '').replace(/<[^>]*>/g, '').substring(0, 60)
-    return {
-      type: 'bubble', size: 'kilo',
-      header: c.imageUrl ? { type: 'box', layout: 'vertical', paddingAll: 'none', contents: [{ type: 'image', url: c.imageUrl, size: 'full', aspectRatio: '20:13', aspectMode: 'cover' }] } : undefined,
-      body: {
-        type: 'box', layout: 'vertical', paddingAll: 'xl',
-        contents: [
-          { type: 'text', text: c.category ?? '', size: 'xs', color: '#FF8C61' },
-          { type: 'text', text: c.title, weight: 'bold', size: 'sm', wrap: true, color: '#333333', margin: 'sm' },
-          { type: 'text', text: bodyText + '…', size: 'xs', color: '#666666', wrap: true, margin: 'sm' },
-        ],
-      },
-      footer: {
-        type: 'box', layout: 'vertical', paddingAll: 'lg',
-        contents: [{ type: 'button', height: 'sm', style: 'primary', color: '#FF8C61', action: { type: 'uri', label: '全文を読む 📖', uri: `${BASE_URL}/p/${d.id}` } }],
-      },
-    }
-  })
+  const bubbles = matched.slice(0, 10).map(d => buildContentBubble(d, BASE_URL))
 
   await client.replyMessage({
     replyToken: event.replyToken,

@@ -64,6 +64,43 @@
         </div>
       </div>
 
+      <!-- LINE表示設定 -->
+      <div class="border border-gray-100 rounded-xl p-4 bg-warm-50 space-y-4">
+        <div class="flex items-center gap-2">
+          <span class="text-lg">💬</span>
+          <p class="text-sm font-medium text-gray-700">LINE表示設定</p>
+          <span class="text-xs text-gray-400">（支援情報検索でカード表示される内容）</span>
+        </div>
+
+        <div>
+          <label class="block text-sm text-gray-600 mb-1.5">カード説明文（未入力なら本文の先頭から自動）</label>
+          <textarea v-model="form.lineSummary" class="input resize-none text-sm" rows="2" maxlength="120" placeholder="カードに表示する短い説明（60文字程度がおすすめ）" />
+        </div>
+
+        <div>
+          <label class="block text-sm text-gray-600 mb-1.5">ボタンの文言</label>
+          <input v-model="form.lineButtonLabel" type="text" class="input text-sm" maxlength="20" placeholder="全文を読む 📖" />
+        </div>
+
+        <!-- LINEカードプレビュー -->
+        <div>
+          <p class="text-xs text-gray-500 mb-2">プレビュー</p>
+          <div class="bg-[#8cabd9] rounded-xl p-4 flex justify-start">
+            <div class="bg-white rounded-2xl overflow-hidden shadow-md w-56">
+              <img v-if="form.imageUrl" :src="form.imageUrl" class="w-full h-28 object-cover" alt="" />
+              <div class="px-4 pt-3 pb-2">
+                <p class="text-xs text-peach-500">📂 {{ form.category || 'カテゴリ未選択' }}</p>
+                <p class="text-sm font-bold text-gray-800 mt-1 leading-snug">{{ form.title || '（タイトル未入力）' }}</p>
+                <p class="text-xs text-gray-500 mt-1 leading-relaxed">{{ lineCardSummary }}</p>
+              </div>
+              <div class="px-3 pb-3">
+                <div class="bg-peach-500 text-white text-sm font-medium text-center py-2 rounded-lg">{{ form.lineButtonLabel || '全文を読む 📖' }}</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <!-- タグ（マスタータグから選択） -->
       <div>
         <label class="block text-sm font-medium text-gray-700 mb-2">タグ</label>
@@ -228,7 +265,18 @@ const form = ref({
   status: 'draft',
   linkUrl: '',
   imageUrl: '',
+  lineSummary: '',
+  lineButtonLabel: '',
   tags: [] as string[],
+})
+
+// LINEカードの説明文（未入力なら本文の先頭60文字）
+const lineCardSummary = computed(() => {
+  const custom = form.value.lineSummary.trim()
+  if (custom) return custom
+  const text = form.value.body.replace(/<[^>]*>/g, '').trim()
+  if (!text) return '（説明未入力）'
+  return text.substring(0, 60) + (text.length > 60 ? '…' : '')
 })
 
 // 公開URL（編集時に自動生成URLを表示）
@@ -312,6 +360,8 @@ onMounted(async () => {
         status: data.status ?? 'draft',
         linkUrl: data.linkUrl ?? '',
         imageUrl: data.imageUrl ?? '',
+        lineSummary: data.lineSummary ?? '',
+        lineButtonLabel: data.lineButtonLabel ?? '',
         tags: data.tags ?? [],
       }
     }
