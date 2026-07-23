@@ -108,11 +108,6 @@
         </button>
 
         <button @click="closeLiff" class="btn-secondary w-full">LINEに戻る</button>
-
-        <!-- デバッグ表示（sendMessagesの結果） -->
-        <div v-if="debugInfo" class="mt-4 p-3 bg-gray-900 text-green-300 rounded-lg text-left text-xs whitespace-pre-wrap break-all">
-          {{ debugInfo }}
-        </div>
       </div>
     </div>
   </div>
@@ -131,7 +126,6 @@ interface Question { id: string; question: string; options: Option[] }
 
 const status = ref<'loading' | 'intro' | 'active' | 'result' | 'error'>('loading')
 const errorMessage = ref('')
-const debugInfo = ref('')
 const sending = ref(false)
 const lineUserId = ref('')
 const displayName = ref('')
@@ -201,20 +195,15 @@ const finish = async () => {
 
   const summary = `【診断結果】\nおすすめ: ${resultTypeLabel[result.value.type]}\n重要度スコア: ${totalScore.value}点\n\n${result.value.message}`
 
-  // ① ユーザー本人の発言としてトークに送信（テスト・判定に頼らず直接呼ぶ）
-  //    結果は画面上のデバッグ欄に表示（LIFF内ブラウザはalertが出ないため）
+  // ① ユーザー本人の発言としてトークに送信（isApiAvailableは環境により例外を
+  //    投げるため判定に使わず、直接呼んで成否をtry/catchで判断する）
   let sentByUser = false
-  const liff = (window as any).liff
-  const testText = 'テスト：診断が完了しました（ユーザー発信テスト）'
-  const avail = (() => { try { return liff?.isApiAvailable?.('sendMessages') } catch { return 'err' } })()
-  const inClient = (() => { try { return liff?.isInClient?.() } catch { return 'err' } })()
-  const os = (() => { try { return liff?.getOS?.() } catch { return 'err' } })()
   try {
-    await liff.sendMessages([{ type: 'text', text: testText }, { type: 'text', text: summary }])
+    const liff = (window as any).liff
+    await liff.sendMessages([{ type: 'text', text: summary }])
     sentByUser = true
-    debugInfo.value = `✅ 送信成功\nsendMessages利用可否: ${avail}\nisInClient: ${inClient}\nOS: ${os}`
-  } catch (e: any) {
-    debugInfo.value = `❌ sendMessages失敗\nエラー: ${e?.message ?? String(e)}\nsendMessages利用可否: ${avail}\nisInClient: ${inClient}\nOS: ${os}`
+  } catch (e) {
+    console.warn('sendMessages失敗（Botプッシュにフォールバック）:', e)
   }
 
   // ② 診断履歴を記録。sendMessagesが使えなかった場合は needsPush:true にして
@@ -251,19 +240,13 @@ const requestConsultation = async (kind: string) => {
   try {
     const liff = (window as any).liff
     const text = `【${kind}を希望します】\n（おすすめ診断より・重要度スコア: ${totalScore.value}点）`
-    if (liff?.isApiAvailable?.('sendMessages')) {
+    // isApiAvailableは例外を投げる環境があるため判定に使わず直接送信を試す
+    try {
       await liff.sendMessages([{ type: 'text', text }])
-      closeLiff()
-    } else {
-      // sendMessagesが使えない場合はFirestoreに相談リクエストを記録
+    } catch (e) {
+      console.warn('sendMessages失敗、Firestoreに記録:', e)
       await recordRequestFallback(kind)
-      alert('ご相談を受け付けました。LINEのトーク画面からメッセージをお送りください😊')
-      closeLiff()
     }
-  } catch (e) {
-    console.warn(e)
-    await recordRequestFallback(kind)
-    alert('ご相談を受け付けました。LINEのトーク画面からお気軽にメッセージをお送りください😊')
     closeLiff()
   } finally {
     sending.value = false
