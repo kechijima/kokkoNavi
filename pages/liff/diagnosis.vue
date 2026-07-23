@@ -193,7 +193,22 @@ const finish = async () => {
     console.warn('診断結果の保存に失敗:', e)
   }
 
-  // 診断履歴（利用状況の確認用）を記録
+  const summary = `【診断結果】\nおすすめ: ${resultTypeLabel[result.value.type]}\n重要度スコア: ${totalScore.value}点\n\n${result.value.message}`
+
+  // ① まずユーザー本人の発言としてトークに残す（LIFF sendMessages・配信数消費なし）
+  let sentByUser = false
+  try {
+    const liff = (window as any).liff
+    if (liff?.isApiAvailable?.('sendMessages')) {
+      await liff.sendMessages([{ type: 'text', text: summary }])
+      sentByUser = true
+    }
+  } catch (e) {
+    console.warn('診断結果メッセージの送信に失敗:', e)
+  }
+
+  // ② 診断履歴を記録。sendMessagesが使えなかった場合は needsPush:true にして
+  //    Cloud Function(onDiagnosisResult)がBotプッシュでフォールバック送信する
   try {
     await addDoc(collection(db, 'diagnosis_results'), {
       userId: lineUserId.value,
@@ -204,22 +219,12 @@ const finish = async () => {
       result: result.value.type,
       resultLabel: resultTypeLabel[result.value.type] ?? '',
       questionCount: flow.value.questions.length,
+      pushMessage: summary,
+      needsPush: !sentByUser,
       createdAt: serverTimestamp(),
     })
   } catch (e) {
     console.warn('診断履歴の保存に失敗:', e)
-  }
-
-  // 診断結果をユーザー本人の発言としてトークに残す（LIFF sendMessages）
-  // → プッシュ配信数を消費しない。webhookは【始まりを自動応答対象外にして保存する
-  try {
-    const liff = (window as any).liff
-    const summary = `【診断結果】\nおすすめ: ${resultTypeLabel[result.value.type]}\n重要度スコア: ${totalScore.value}点\n\n${result.value.message}`
-    if (liff?.isApiAvailable?.('sendMessages')) {
-      await liff.sendMessages([{ type: 'text', text: summary }])
-    }
-  } catch (e) {
-    console.warn('診断結果メッセージの送信に失敗:', e)
   }
 }
 
