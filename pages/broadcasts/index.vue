@@ -46,6 +46,7 @@
             <td class="table-cell font-medium text-gray-800">{{ b.title ?? 'タイトルなし' }}</td>
             <td class="table-cell">
               <span :class="statusClass(b.status)" class="badge whitespace-nowrap">{{ statusLabel(b.status) }}</span>
+              <p v-if="b.status === 'failed' && b.error" class="text-xs text-red-400 mt-1 max-w-xs truncate" :title="b.error">{{ b.error }}</p>
             </td>
             <td class="table-cell hidden md:table-cell text-gray-500">{{ b.segmentName ?? 'すべて' }}</td>
             <td class="table-cell hidden md:table-cell">
