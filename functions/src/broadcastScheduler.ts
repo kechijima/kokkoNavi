@@ -50,11 +50,9 @@ async function getUsersBySegment(segmentId: string): Promise<string[]> {
   return userIds
 }
 
-// 全員配信（オンボーディング完了済みのユーザー全員）
+// 全員配信（登録ユーザー全員。作成画面の人数表示(users全件)と対象を一致させる）
 async function getAllUserIds(): Promise<string[]> {
-  const snap = await db.collection('users')
-    .where('onboardingStatus', '==', 'completed')
-    .get()
+  const snap = await db.collection('users').get()
   return snap.docs.map(d => d.id)
 }
 
