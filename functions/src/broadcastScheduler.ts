@@ -23,11 +23,6 @@ function matchSegment(userData: any, conditions: any): boolean {
     if (!hasAny) return false
   }
 
-  if (conditions.region) {
-    const userRegion = userData.attributes?.region
-    if (!userRegion || !userRegion.includes(conditions.region)) return false
-  }
-
   return true
 }
 
