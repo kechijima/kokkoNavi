@@ -160,7 +160,7 @@
 </template>
 
 <script setup lang="ts">
-import { collection, query, orderBy, getDocs, addDoc, serverTimestamp, Timestamp, getCountFromServer } from 'firebase/firestore'
+import { collection, query, orderBy, getDocs, addDoc, serverTimestamp, Timestamp, getCountFromServer, doc, getDoc } from 'firebase/firestore'
 
 const route = useRoute()
 const router = useRouter()
@@ -234,5 +234,20 @@ onMounted(async () => {
   segments.value = segsSnap.docs.map(d => ({ id: d.id, ...d.data() }))
   contents.value = contentsSnap.docs.map(d => ({ id: d.id, ...d.data() }))
   totalUsers.value = countSnap.data().count
+
+  // 既存配信（失敗・完了分など）の内容をコピーして作り直す
+  const copyFromId = route.query.copyFrom as string | undefined
+  if (copyFromId) {
+    const snap = await getDoc(doc(db, 'broadcasts', copyFromId))
+    if (snap.exists()) {
+      const src = snap.data() as any
+      targetType.value = src.targetAll ? 'all' : 'segment'
+      messageType.value = src.messageType === 'custom' ? 'custom' : 'content'
+      form.value.title = src.title ? `${src.title}（コピー）` : ''
+      form.value.segmentId = src.segmentId ?? ''
+      form.value.contentId = src.contentId ?? ''
+      form.value.message = src.message ?? ''
+    }
+  }
 })
 </script>

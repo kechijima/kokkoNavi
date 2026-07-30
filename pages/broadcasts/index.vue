@@ -71,6 +71,13 @@
                   取消
                 </button>
               </div>
+              <NuxtLink
+                v-else-if="b.status === 'failed'"
+                :to="`/broadcasts/new?copyFrom=${b.id}`"
+                class="btn-ghost text-xs px-2 py-1 text-peach-500 hover:text-peach-600 whitespace-nowrap"
+              >
+                複製して作り直す
+              </NuxtLink>
             </td>
           </tr>
         </tbody>
