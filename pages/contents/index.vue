@@ -115,7 +115,12 @@
             <p class="text-xs font-medium text-gray-500 mb-1">プレビュー（先頭{{ Math.min(3, importRows.length) }}件）</p>
             <div v-for="(row, i) in importRows.slice(0, 3)" :key="i" class="text-xs bg-white rounded-lg p-2 border border-gray-100">
               <p class="font-medium text-gray-800">{{ row.タイトル }}</p>
-              <p class="text-gray-500">{{ row.カテゴリ }}</p>
+              <p class="text-gray-500">
+                {{ resolveCategory(row['カテゴリ']) }}
+                <span v-if="row['カテゴリ'] && row['カテゴリ'] !== resolveCategory(row['カテゴリ'])" class="text-amber-500">
+                  （CSV: 「{{ row['カテゴリ'] }}」→種別未登録のため変更）
+                </span>
+              </p>
             </div>
           </div>
 
@@ -224,6 +229,13 @@ function parseCsv(text: string): Record<string, string>[] {
   })
 }
 
+// 種別管理（categories）に存在しないカテゴリは「その他」にフォールバック
+function resolveCategory(raw: string | undefined): string {
+  const trimmed = raw?.trim()
+  if (trimmed && categories.value.includes(trimmed)) return trimmed
+  return categories.value.includes('その他') ? 'その他' : (categories.value[0] ?? 'その他')
+}
+
 // CSVの1行から本文（企業名・所在地・URL・支援内容の形式）を生成
 function buildBodyFromRow(row: Record<string, string>): string {
   const parts: string[] = []
@@ -256,7 +268,7 @@ const runImport = async () => {
 
       const docRef = await addDoc(collection(db, 'contents'), {
         title,
-        category: row['カテゴリ']?.trim() || 'その他',
+        category: resolveCategory(row['カテゴリ']),
         body: buildBodyFromRow(row),
         status: importStatus.value,
         linkUrl: '__pending__',
