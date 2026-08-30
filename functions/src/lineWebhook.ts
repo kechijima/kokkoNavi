@@ -578,6 +578,17 @@ async function handlePostback(event: PostbackEvent, client: messagingApi.Messagi
       })
       break
     }
+
+    // 準備中の機能（子育てサポートメニューの一部ボタン）
+    case 'coming_soon':
+      await client.replyMessage({
+        replyToken: event.replyToken,
+        messages: [{
+          type: 'text',
+          text: 'この機能は準備中です🌱\nもう少しお待ちください。\n気になることがあれば「質問・相談」からお気軽にどうぞ😊',
+        }]
+      })
+      break
   }
 }
 
