@@ -388,12 +388,42 @@ const KOSODATE_BUTTON_LABELS: Record<string, string> = {
   divorce: '離婚について',
 }
 
+// 管理画面で種別が未紐づけの場合に、名前が近い種別を自動的に採用するためのキーワード候補
+// （管理画面「リッチメニュー管理」で明示的に紐づけた場合はそちらが優先される）
+const KOSODATE_CATEGORY_FALLBACK_KEYWORDS: Record<string, string[]> = {
+  child_general: ['子育て全般', '子育て支援', '子育て'],
+  single_parent: ['ひとり親'],
+  medical: ['医療'],
+  pre_single_parent: ['プレひとり親'],
+  divorce: ['離婚', '法律・権利', '法律'],
+}
+
 // 子育てサポートメニューのボタン押下 → 紐づく種別のタグ（＋種別に属さない独立タグ）を選択させる
 async function handleKosodateTagMenu(event: PostbackEvent, client: messagingApi.MessagingApiClient, key: string) {
   const label = KOSODATE_BUTTON_LABELS[key] ?? 'この項目'
 
   const settingsSnap = await db.collection('settings').doc('richmenu').get()
-  const categoryId = settingsSnap.exists ? (settingsSnap.data()?.kosodateCategoryLinks?.[key] as string | undefined) : undefined
+  let categoryId = settingsSnap.exists ? (settingsSnap.data()?.kosodateCategoryLinks?.[key] as string | undefined) : undefined
+  let categoryTags: string[] = []
+
+  if (categoryId) {
+    const catSnap = await db.collection('categories').doc(categoryId).get()
+    categoryTags = catSnap.exists ? (catSnap.data()?.tags ?? []) : []
+  } else {
+    // 未紐づけ: 種別名にキーワードを含む種別を自動採用（見つからなければ準備中）
+    const keywords = KOSODATE_CATEGORY_FALLBACK_KEYWORDS[key] ?? []
+    if (keywords.length > 0) {
+      const allCatsForFallback = await db.collection('categories').get()
+      for (const kw of keywords) {
+        const match = allCatsForFallback.docs.find(d => (d.data().name as string ?? '').includes(kw))
+        if (match) {
+          categoryId = match.id
+          categoryTags = (match.data().tags as string[]) ?? []
+          break
+        }
+      }
+    }
+  }
 
   if (!categoryId) {
     await client.replyMessage({
@@ -402,9 +432,6 @@ async function handleKosodateTagMenu(event: PostbackEvent, client: messagingApi.
     })
     return
   }
-
-  const catSnap = await db.collection('categories').doc(categoryId).get()
-  const categoryTags: string[] = catSnap.exists ? (catSnap.data()?.tags ?? []) : []
 
   // 種別に紐づいていない独立タグ（例: 杉並区など地域タグ）も選択肢に加える
   const [allCatsSnap, allTagsSnap] = await Promise.all([
