@@ -433,7 +433,17 @@ async function handleKosodateTagMenu(event: PostbackEvent, client: messagingApi.
     return
   }
 
-  // 種別に紐づいていない独立タグ（例: 杉並区など地域タグ）も選択肢に加える
+  if (categoryTags.length === 0) {
+    // 種別自体にタグが紐づいていない場合、無関係な独立タグの羅列を出さず案内する
+    await client.replyMessage({
+      replyToken: event.replyToken,
+      messages: [{ type: 'text', text: `「${label}」にはまだタグが紐づいていません。種別管理で「${label}」に近い種別にタグを設定してください。` }],
+    })
+    return
+  }
+
+  // 種別に紐づいていない独立タグ（例: 杉並区など地域タグ）は、種別のタグがある場合のみ
+  // 追加の絞り込み候補として提示する（📍で区別）
   const [allCatsSnap, allTagsSnap] = await Promise.all([
     db.collection('categories').get(),
     db.collection('tags').get(),
@@ -445,30 +455,31 @@ async function handleKosodateTagMenu(event: PostbackEvent, client: messagingApi.
   })
   const independentTags = allTagsSnap.docs
     .map(d => d.data().name as string)
-    .filter(name => name && !linkedTagSet.has(name))
+    .filter(name => name && !linkedTagSet.has(name) && !categoryTags.includes(name))
 
-  const tagOptions = [...new Set([...categoryTags, ...independentTags])]
-
-  if (tagOptions.length === 0) {
-    await client.replyMessage({
-      replyToken: event.replyToken,
-      messages: [{ type: 'text', text: `「${label}」に紐づくタグがまだ設定されていません。種別管理からタグを設定してください。` }],
-    })
-    return
-  }
+  // 種別のタグを優先し、残りの枠に独立タグ（地域など）を補う
+  const uniqueCategoryTags = [...new Set(categoryTags)]
+  const remainingSlots = Math.max(0, 12 - uniqueCategoryTags.length)
+  const tagItems = [
+    ...uniqueCategoryTags.map(tag => ({ tag, isIndependent: false })),
+    ...independentTags.slice(0, remainingSlots).map(tag => ({ tag, isIndependent: true })),
+  ]
 
   const BASE_URL = 'https://kokkonavi.web.app'
   await client.replyMessage({
     replyToken: event.replyToken,
     messages: [{
       type: 'text',
-      text: `🌸 「${label}」に関連するタグから絞り込めます。\n気になるものを選んでください👇\n（「すべて見る」はキーワードや種別で全コンテンツから探せます）`,
+      text: `🌸 「${label}」に関連するタグから絞り込めます。\n気になるものを選んでください👇\n（📍は地域などの絞り込みタグです。「すべて見る」はキーワードや種別で全コンテンツから探せます）`,
       quickReply: {
         items: [
-          ...tagOptions.slice(0, 12).map(tag => ({
-            type: 'action' as const,
-            action: { type: 'postback' as const, label: tag.length > 20 ? tag.substring(0, 20) : tag, data: `action=search_by_tag&tag=${encodeURIComponent(tag)}`, displayText: tag },
-          })),
+          ...tagItems.map(({ tag, isIndependent }) => {
+            const displayLabel = isIndependent ? `📍${tag}` : tag
+            return {
+              type: 'action' as const,
+              action: { type: 'postback' as const, label: displayLabel.length > 20 ? displayLabel.substring(0, 20) : displayLabel, data: `action=search_by_tag&tag=${encodeURIComponent(tag)}`, displayText: tag },
+            }
+          }),
           {
             type: 'action' as const,
             action: { type: 'uri' as const, label: '🔍 すべて見る', uri: `${BASE_URL}/search` },
