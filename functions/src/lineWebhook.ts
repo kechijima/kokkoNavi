@@ -430,16 +430,23 @@ async function handleKosodateTagMenu(event: PostbackEvent, client: messagingApi.
     return
   }
 
+  const BASE_URL = 'https://kokkonavi.web.app'
   await client.replyMessage({
     replyToken: event.replyToken,
     messages: [{
       type: 'text',
-      text: `🌸 「${label}」に関連するタグから絞り込めます。\n気になるものを選んでください👇`,
+      text: `🌸 「${label}」に関連するタグから絞り込めます。\n気になるものを選んでください👇\n（「すべて見る」はキーワードや種別で全コンテンツから探せます）`,
       quickReply: {
-        items: tagOptions.slice(0, 13).map(tag => ({
-          type: 'action' as const,
-          action: { type: 'postback' as const, label: tag.length > 20 ? tag.substring(0, 20) : tag, data: `action=search_by_tag&tag=${encodeURIComponent(tag)}`, displayText: tag },
-        })),
+        items: [
+          ...tagOptions.slice(0, 12).map(tag => ({
+            type: 'action' as const,
+            action: { type: 'postback' as const, label: tag.length > 20 ? tag.substring(0, 20) : tag, data: `action=search_by_tag&tag=${encodeURIComponent(tag)}`, displayText: tag },
+          })),
+          {
+            type: 'action' as const,
+            action: { type: 'uri' as const, label: '🔍 すべて見る', uri: `${BASE_URL}/search` },
+          },
+        ],
       },
     } as TextMessage]
   })
