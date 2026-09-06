@@ -15,8 +15,8 @@
  * その下に3列×2行の6ボタングリッドがある前提です。
  * タブ部分の座標がずれる場合は、最後の引数 tab_height_px を調整してください。
  *
- * ── メインメニュー（そのまま維持） ──────────────
- *  上段: 支援情報を探す / 診断 / 公式Webサイト
+ * ── メインメニュー ────────────────────────────
+ *  上段: 子育てサポート(→子育てサポートメニュータブへ切替) / 診断 / 公式Webサイト
  *  下段: 質問・相談 / プロフィール変更 / よくある質問
  *
  * ── 子育てサポートメニュー（新規） ──────────────
@@ -158,8 +158,8 @@ const mainRichMenuBody = {
   chatBarText: 'メニュー',
   areas: [
     tabAreaToKosodate(),
-    // 上段左: 支援情報を探す
-    { bounds: { x: C0, y: TAB_H, width: COL_W, height: ROW_H }, action: { type: 'postback', label: '支援情報を探す', data: 'action=search', displayText: '支援情報を探す' } },
+    // 上段左: 子育てサポート → 子育てサポートメニュータブへ切替
+    { bounds: { x: C0, y: TAB_H, width: COL_W, height: ROW_H }, action: { type: 'richmenuswitch', label: '子育てサポート', richMenuAliasId: 'kokkonavi-kosodate', data: 'action=tab_switch&to=kosodate' } },
     // 上段中: 診断
     { bounds: { x: C1, y: TAB_H, width: COL_W, height: ROW_H }, action: { type: 'uri', label: '診断', uri: `https://liff.line.me/${LIFF_DIAGNOSIS_ID}` } },
     // 上段右: 公式Webサイト

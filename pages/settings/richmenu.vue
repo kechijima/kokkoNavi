@@ -90,7 +90,7 @@
       <div class="grid grid-cols-1 gap-2 text-xs text-gray-600">
         <div class="flex gap-3">
           <div class="w-24 shrink-0 font-medium text-gray-500">上段左</div>
-          <div>支援情報を探す → カテゴリ選択</div>
+          <div>子育てサポート → 子育てサポートメニュータブへ切替</div>
         </div>
         <div class="flex gap-3">
           <div class="w-24 shrink-0 font-medium text-gray-500">上段中</div>
