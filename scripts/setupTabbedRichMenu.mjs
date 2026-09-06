@@ -20,8 +20,15 @@
  *  下段: 質問・相談 / プロフィール変更 / よくある質問
  *
  * ── 子育てサポートメニュー（新規） ──────────────
- *  上段: 子育て全般(→子育て支援カテゴリ) / ひとり親(→キーワード検索) / 医療(→キーワード検索)
- *  下段: プレひとり親(準備中) / 離婚について(→キーワード検索) / 質問・相談
+ *  上段: 子育て全般 / ひとり親 / 医療  → いずれも紐づく種別のタグ選択メニュー
+ *  下段: プレひとり親 / 離婚について    → 同上
+ *        イベント → 公開中のイベント一覧
+ *
+ * 「子育て全般」「ひとり親」「医療」「プレひとり親」「離婚について」の各ボタンは、
+ * 管理画面（リッチメニュー設定）で種別（カテゴリ）と紐づけると、
+ * その種別に登録したタグの選択メニューが表示され、選んだタグのコンテンツが届きます。
+ * 種別に紐づいていない独立タグ（例: 杉並区など）も選択肢に含まれます。
+ * 未設定の場合は「準備中」の案内が表示されます。
  */
 
 import fs from 'fs'
@@ -36,7 +43,6 @@ const LIFF_ID = process.argv[4] || '2005378903-LXWyy1H1'
 const WEBSITE_URL = process.argv[5] || 'https://www.coccopeer.com/'
 const LIFF_DIAGNOSIS_ID = process.argv[6] || '2005378903-AQ6v2XZx'
 const TAB_H = Number(process.argv[7]) || 300
-const BASE_URL = 'https://kokkonavi.web.app'
 
 if (!MAIN_IMAGE_PATH || !KOSODATE_IMAGE_PATH) {
   console.error('Usage: node scripts/setupTabbedRichMenu.mjs <メイン画像パス> <子育てサポート画像パス> [liff_profile_id] [website_url] [liff_diagnosis_id] [tab_height_px]')
@@ -168,7 +174,8 @@ const mainRichMenuBody = {
 }
 
 // ─── 子育てサポートメニュー（新規） ───────────────
-// 対応する機能があるボタンは検索ページ/既存postbackに接続。ないものは準備中メッセージ。
+// 「子育て全般/ひとり親/医療/プレひとり親/離婚について」は種別に紐づくタグ選択メニューを開く。
+// 種別との紐づけは管理画面（リッチメニュー設定）で行う。イベントは公開中イベント一覧。
 
 const kosodateRichMenuBody = {
   size: { width: W, height: H },
@@ -177,18 +184,18 @@ const kosodateRichMenuBody = {
   chatBarText: 'メニュー',
   areas: [
     tabAreaToMain(),
-    // 上段左: 子育て全般 → 子育て支援カテゴリ検索
-    { bounds: { x: C0, y: TAB_H, width: COL_W, height: ROW_H }, action: { type: 'postback', label: '子育て全般', data: 'action=search_cat&cat=子育て支援', displayText: '子育て全般' } },
-    // 上段中: ひとり親 → キーワード検索
-    { bounds: { x: C1, y: TAB_H, width: COL_W, height: ROW_H }, action: { type: 'uri', label: 'ひとり親', uri: `${BASE_URL}/search?q=${encodeURIComponent('ひとり親')}` } },
-    // 上段右: 医療 → キーワード検索
-    { bounds: { x: C2, y: TAB_H, width: COL_W_LAST, height: ROW_H }, action: { type: 'uri', label: '医療', uri: `${BASE_URL}/search?q=${encodeURIComponent('医療')}` } },
-    // 下段左: プレひとり親 → 準備中
-    { bounds: { x: C0, y: TAB_H + ROW_H, width: COL_W, height: ROW_H }, action: { type: 'postback', label: 'プレひとり親', data: 'action=coming_soon', displayText: 'プレひとり親' } },
-    // 下段中: 離婚について → キーワード検索
-    { bounds: { x: C1, y: TAB_H + ROW_H, width: COL_W, height: ROW_H }, action: { type: 'uri', label: '離婚について', uri: `${BASE_URL}/search?q=${encodeURIComponent('離婚')}` } },
-    // 下段右: 質問・相談（メインメニューと同じ）
-    { bounds: { x: C2, y: TAB_H + ROW_H, width: COL_W_LAST, height: ROW_H }, action: { type: 'postback', label: '質問・相談', data: 'action=consult', displayText: '質問・相談' } },
+    // 上段左: 子育て全般 → 紐づく種別のタグ選択
+    { bounds: { x: C0, y: TAB_H, width: COL_W, height: ROW_H }, action: { type: 'postback', label: '子育て全般', data: 'action=kosodate_tag_menu&key=child_general', displayText: '子育て全般' } },
+    // 上段中: ひとり親 → 紐づく種別のタグ選択
+    { bounds: { x: C1, y: TAB_H, width: COL_W, height: ROW_H }, action: { type: 'postback', label: 'ひとり親', data: 'action=kosodate_tag_menu&key=single_parent', displayText: 'ひとり親' } },
+    // 上段右: 医療 → 紐づく種別のタグ選択
+    { bounds: { x: C2, y: TAB_H, width: COL_W_LAST, height: ROW_H }, action: { type: 'postback', label: '医療', data: 'action=kosodate_tag_menu&key=medical', displayText: '医療' } },
+    // 下段左: プレひとり親 → 紐づく種別のタグ選択
+    { bounds: { x: C0, y: TAB_H + ROW_H, width: COL_W, height: ROW_H }, action: { type: 'postback', label: 'プレひとり親', data: 'action=kosodate_tag_menu&key=pre_single_parent', displayText: 'プレひとり親' } },
+    // 下段中: 離婚について → 紐づく種別のタグ選択
+    { bounds: { x: C1, y: TAB_H + ROW_H, width: COL_W, height: ROW_H }, action: { type: 'postback', label: '離婚について', data: 'action=kosodate_tag_menu&key=divorce', displayText: '離婚について' } },
+    // 下段右: イベント → 公開中のイベント一覧
+    { bounds: { x: C2, y: TAB_H + ROW_H, width: COL_W_LAST, height: ROW_H }, action: { type: 'postback', label: 'イベント', data: 'action=events', displayText: 'イベント' } },
   ],
 }
 

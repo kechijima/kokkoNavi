@@ -33,7 +33,13 @@
             title="下へ"
           >▼</button>
         </div>
-        <span class="flex-1 text-sm font-medium text-gray-800">{{ cat.name }}</span>
+        <div class="flex-1 min-w-0">
+          <p class="text-sm font-medium text-gray-800">{{ cat.name }}</p>
+          <div v-if="cat.tags?.length" class="flex flex-wrap gap-1 mt-1">
+            <span v-for="t in cat.tags" :key="t" class="text-[11px] bg-peach-50 text-peach-600 px-1.5 py-0.5 rounded-full">{{ t }}</span>
+          </div>
+          <p v-else class="text-xs text-gray-400 mt-1">紐づくタグ未設定</p>
+        </div>
         <div class="flex gap-2">
           <button @click="openEdit(cat)" class="text-xs text-peach-500 hover:text-peach-700 px-2 py-1 rounded hover:bg-peach-50">編集</button>
           <button @click="deleteCategory(cat.id)" class="text-xs text-red-400 hover:text-red-600 px-2 py-1 rounded hover:bg-red-50">削除</button>
@@ -57,6 +63,29 @@
           <p class="text-xs text-gray-400 mt-1">数字が小さいほど先に表示されます</p>
         </div>
 
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">紐づくタグ</label>
+          <p class="text-xs text-gray-400 mb-2">この種別に関連するタグを選択します（LINEの絞り込みメニューなどで使用）</p>
+          <div v-if="form.tags.length" class="flex flex-wrap gap-1.5 mb-2">
+            <span
+              v-for="t in form.tags"
+              :key="t"
+              @click="form.tags = form.tags.filter(x => x !== t)"
+              class="badge badge-peach text-xs cursor-pointer"
+            >{{ t }} ×</span>
+          </div>
+          <div v-if="masterTags.length" class="flex flex-wrap gap-1.5">
+            <button
+              v-for="mt in masterTags.filter(t => !form.tags.includes(t.name))"
+              :key="mt.id"
+              type="button"
+              @click="form.tags.push(mt.name)"
+              class="badge badge-gray text-xs cursor-pointer hover:bg-peach-100 hover:text-peach-700 transition-colors"
+            >+ {{ mt.name }}</button>
+          </div>
+          <p v-else class="text-xs text-gray-400">タグ管理でタグを追加するとここに表示されます</p>
+        </div>
+
         <div class="flex gap-3 pt-2">
           <button @click="save" class="btn-primary flex-1" :disabled="saving">
             {{ saving ? '保存中...' : '保存する' }}
@@ -77,16 +106,18 @@ interface Category {
   id: string
   name: string
   order: number
+  tags: string[]
 }
 
 const { db } = useFirebase()
 
 const categories = ref<Category[]>([])
+const masterTags = ref<{ id: string; name: string }[]>([])
 const showModal = ref(false)
 const saving = ref(false)
 const editingId = ref<string | null>(null)
 
-const form = ref({ name: '', order: 0 })
+const form = ref({ name: '', order: 0, tags: [] as string[] })
 
 const loadCategories = async () => {
   const snap = await getDocs(query(collection(db, 'categories'), orderBy('order', 'asc')))
@@ -94,18 +125,24 @@ const loadCategories = async () => {
     id: d.id,
     name: d.data().name as string,
     order: d.data().order as number ?? 0,
+    tags: (d.data().tags as string[]) ?? [],
   }))
+}
+
+const loadMasterTags = async () => {
+  const snap = await getDocs(collection(db, 'tags'))
+  masterTags.value = snap.docs.map(d => ({ id: d.id, name: (d.data() as any).name }))
 }
 
 const openAdd = () => {
   editingId.value = null
-  form.value = { name: '', order: categories.value.length }
+  form.value = { name: '', order: categories.value.length, tags: [] }
   showModal.value = true
 }
 
 const openEdit = (cat: Category) => {
   editingId.value = cat.id
-  form.value = { name: cat.name, order: cat.order }
+  form.value = { name: cat.name, order: cat.order, tags: [...(cat.tags ?? [])] }
   showModal.value = true
 }
 
@@ -124,12 +161,14 @@ const save = async () => {
       await updateDoc(doc(db, 'categories', editingId.value), {
         name: form.value.name.trim(),
         order: form.value.order,
+        tags: form.value.tags,
         updatedAt: serverTimestamp(),
       })
     } else {
       await addDoc(collection(db, 'categories'), {
         name: form.value.name.trim(),
         order: form.value.order,
+        tags: form.value.tags,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
       })
@@ -168,5 +207,7 @@ const deleteCategory = async (id: string) => {
   await loadCategories()
 }
 
-onMounted(loadCategories)
+onMounted(async () => {
+  await Promise.all([loadCategories(), loadMasterTags()])
+})
 </script>

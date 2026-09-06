@@ -377,6 +377,102 @@ async function handleKeywordSearch(event: MessageEvent, client: messagingApi.Mes
   })
 }
 
+// ─── 子育てサポートメニュー（種別に紐づくタグで絞り込み） ─
+
+// ボタンキー→種別リンクのラベル（案内メッセージ用）
+const KOSODATE_BUTTON_LABELS: Record<string, string> = {
+  child_general: '子育て全般',
+  single_parent: 'ひとり親',
+  medical: '医療',
+  pre_single_parent: 'プレひとり親',
+  divorce: '離婚について',
+}
+
+// 子育てサポートメニューのボタン押下 → 紐づく種別のタグ（＋種別に属さない独立タグ）を選択させる
+async function handleKosodateTagMenu(event: PostbackEvent, client: messagingApi.MessagingApiClient, key: string) {
+  const label = KOSODATE_BUTTON_LABELS[key] ?? 'この項目'
+
+  const settingsSnap = await db.collection('settings').doc('richmenu').get()
+  const categoryId = settingsSnap.exists ? (settingsSnap.data()?.kosodateCategoryLinks?.[key] as string | undefined) : undefined
+
+  if (!categoryId) {
+    await client.replyMessage({
+      replyToken: event.replyToken,
+      messages: [{ type: 'text', text: `「${label}」は準備中です🌱\nもう少しお待ちください。気になることがあれば「質問・相談」からお気軽にどうぞ😊` }],
+    })
+    return
+  }
+
+  const catSnap = await db.collection('categories').doc(categoryId).get()
+  const categoryTags: string[] = catSnap.exists ? (catSnap.data()?.tags ?? []) : []
+
+  // 種別に紐づいていない独立タグ（例: 杉並区など地域タグ）も選択肢に加える
+  const [allCatsSnap, allTagsSnap] = await Promise.all([
+    db.collection('categories').get(),
+    db.collection('tags').get(),
+  ])
+  const linkedTagSet = new Set<string>()
+  allCatsSnap.docs.forEach(d => {
+    const tags: string[] = d.data().tags ?? []
+    tags.forEach(t => linkedTagSet.add(t))
+  })
+  const independentTags = allTagsSnap.docs
+    .map(d => d.data().name as string)
+    .filter(name => name && !linkedTagSet.has(name))
+
+  const tagOptions = [...new Set([...categoryTags, ...independentTags])]
+
+  if (tagOptions.length === 0) {
+    await client.replyMessage({
+      replyToken: event.replyToken,
+      messages: [{ type: 'text', text: `「${label}」に紐づくタグがまだ設定されていません。種別管理からタグを設定してください。` }],
+    })
+    return
+  }
+
+  await client.replyMessage({
+    replyToken: event.replyToken,
+    messages: [{
+      type: 'text',
+      text: `🌸 「${label}」に関連するタグから絞り込めます。\n気になるものを選んでください👇`,
+      quickReply: {
+        items: tagOptions.slice(0, 13).map(tag => ({
+          type: 'action' as const,
+          action: { type: 'postback' as const, label: tag.length > 20 ? tag.substring(0, 20) : tag, data: `action=search_by_tag&tag=${encodeURIComponent(tag)}`, displayText: tag },
+        })),
+      },
+    } as TextMessage]
+  })
+}
+
+// タグ選択確定 → そのタグを持つ公開コンテンツを表示
+async function handleTagContentSearch(event: PostbackEvent, client: messagingApi.MessagingApiClient, tag: string) {
+  const snap = await db.collection('contents').where('status', '==', 'published').get()
+  const matched = snap.docs.filter(d => {
+    const tags: string[] = d.data().tags ?? []
+    return Array.isArray(tags) && tags.includes(tag)
+  })
+
+  if (matched.length === 0) {
+    await client.replyMessage({
+      replyToken: event.replyToken,
+      messages: [{ type: 'text', text: `「${tag}」に該当するコンテンツは見つかりませんでした。` }],
+    })
+    return
+  }
+
+  const BASE_URL = 'https://kokkonavi.web.app'
+  const bubbles = matched.slice(0, 10).map(d => buildContentBubble(d, BASE_URL))
+
+  await client.replyMessage({
+    replyToken: event.replyToken,
+    messages: [
+      { type: 'text', text: `「${tag}」の該当コンテンツ：${matched.length}件${matched.length > 10 ? '（上位10件を表示）' : ''}` },
+      { type: 'flex', altText: `「${tag}」の該当コンテンツ`, contents: { type: 'carousel', contents: bubbles } } as any,
+    ],
+  })
+}
+
 // 診断LIFFのURLを取得（settings/richmenuの専用LIFF ID優先、なければ共通LIFFのパス付き）
 async function getDiagnosisUrl(): Promise<string> {
   // 診断専用LIFFのデフォルトID（管理画面で上書き可能）
@@ -589,6 +685,20 @@ async function handlePostback(event: PostbackEvent, client: messagingApi.Messagi
         }]
       })
       break
+
+    // 子育てサポートメニュー: ボタン押下 → 紐づく種別のタグ選択を表示
+    case 'kosodate_tag_menu': {
+      const key = params.get('key') ?? ''
+      await handleKosodateTagMenu(event, client, key)
+      break
+    }
+
+    // 子育てサポートメニュー: タグ選択確定 → 該当コンテンツを表示
+    case 'search_by_tag': {
+      const tag = decodeURIComponent(params.get('tag') ?? '')
+      await handleTagContentSearch(event, client, tag)
+      break
+    }
   }
 }
 
