@@ -368,6 +368,9 @@ async function handleKeywordSearch(event: MessageEvent, client: messagingApi.Mes
 
 // ─── 子育てサポートメニュー（種別に紐づくタグで絞り込み） ─
 
+// 地域タグ「東京都杉並区」: タグ選択肢には出さず、ユーザーの地域タグ有無で自動フィルタする
+const SUGINAMI_TAG = '東京都杉並区'
+
 // ボタンキー→種別リンクのラベル（案内メッセージ用）
 const KOSODATE_BUTTON_LABELS: Record<string, string> = {
   child_general: '子育て全般',
@@ -432,7 +435,8 @@ async function handleKosodateTagMenu(event: PostbackEvent, client: messagingApi.
   }
 
   // 種別に紐づいていない独立タグ（例: 杉並区など地域タグ）は、種別のタグがある場合のみ
-  // 追加の絞り込み候補として提示する（📍で区別）
+  // 追加の絞り込み候補として提示する（📍で区別）。
+  // 「東京都杉並区」はタグ選択肢には出さず、ユーザーの地域タグに応じて自動で絞り込む
   const [allCatsSnap, allTagsSnap] = await Promise.all([
     db.collection('categories').get(),
     db.collection('tags').get(),
@@ -444,10 +448,10 @@ async function handleKosodateTagMenu(event: PostbackEvent, client: messagingApi.
   })
   const independentTags = allTagsSnap.docs
     .map(d => d.data().name as string)
-    .filter(name => name && !linkedTagSet.has(name) && !categoryTags.includes(name))
+    .filter(name => name && name !== SUGINAMI_TAG && !linkedTagSet.has(name) && !categoryTags.includes(name))
 
-  // 種別のタグを優先し、残りの枠に独立タグ（地域など）を補う
-  const uniqueCategoryTags = [...new Set(categoryTags)]
+  // 種別のタグを優先し、残りの枠に独立タグ（地域など）を補う（「東京都杉並区」は除外）
+  const uniqueCategoryTags = [...new Set(categoryTags)].filter(t => t !== SUGINAMI_TAG)
   const remainingSlots = Math.max(0, 12 - uniqueCategoryTags.length)
   const tagItems = [
     ...uniqueCategoryTags.map(tag => ({ tag, isIndependent: false })),
@@ -480,11 +484,22 @@ async function handleKosodateTagMenu(event: PostbackEvent, client: messagingApi.
 }
 
 // タグ選択確定 → そのタグを持つ公開コンテンツを表示
+// あわせて、ユーザーの「東京都杉並区」タグの有無でコンテンツを自動絞り込みする
+//   ユーザーが杉並区タグを持つ → 杉並区タグ付きコンテンツのみ
+//   ユーザーが杉並区タグを持たない → 杉並区タグが付いていないコンテンツのみ
 async function handleTagContentSearch(event: PostbackEvent, client: messagingApi.MessagingApiClient, tag: string) {
+  const lineUserId = event.source.userId
+  const userTags: string[] = lineUserId
+    ? ((await db.collection('users').doc(lineUserId).get()).data()?.tags ?? [])
+    : []
+  const userHasSuginami = Array.isArray(userTags) && userTags.includes(SUGINAMI_TAG)
+
   const snap = await db.collection('contents').where('status', '==', 'published').get()
   const matched = snap.docs.filter(d => {
     const tags: string[] = d.data().tags ?? []
-    return Array.isArray(tags) && tags.includes(tag)
+    if (!Array.isArray(tags) || !tags.includes(tag)) return false
+    const contentHasSuginami = tags.includes(SUGINAMI_TAG)
+    return userHasSuginami ? contentHasSuginami : !contentHasSuginami
   })
 
   if (matched.length === 0) {
