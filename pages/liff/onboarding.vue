@@ -123,6 +123,25 @@
               @keydown.enter="handleNext"
             />
           </div>
+
+          <!-- 住所（都道府県・市区町村を選択＋残りはテキスト） -->
+          <div v-else-if="currentStep.type === 'address'" class="space-y-3">
+            <select v-model="selectedPrefecture" class="input text-base">
+              <option value="">都道府県を選択</option>
+              <option v-for="p in prefectures" :key="p" :value="p">{{ p }}</option>
+            </select>
+            <select v-model="selectedCity" class="input text-base" :disabled="!selectedPrefecture">
+              <option value="">市区町村を選択</option>
+              <option v-for="c in citiesOf(selectedPrefecture)" :key="c" :value="c">{{ c }}</option>
+            </select>
+            <input
+              v-model="addressDetail"
+              type="text"
+              class="input text-base"
+              placeholder="番地・建物名など（任意）"
+              @keydown.enter="handleNext"
+            />
+          </div>
         </div>
       </div>
 
@@ -167,8 +186,9 @@ definePageMeta({ layout: false, middleware: [] })
 
 const { db } = useFirebase()
 const config = useRuntimeConfig()
+const { prefectures, citiesOf } = useJapanAddress()
 
-type StepType = 'single' | 'multi' | 'text' | 'number'
+type StepType = 'single' | 'multi' | 'text' | 'number' | 'address'
 interface Step {
   id: string
   question: string
@@ -191,6 +211,9 @@ const currentStepIndex = ref(0)
 const answers = ref<Record<string, any>>({})
 const selectedOptions = ref<string[]>([])
 const textAnswer = ref('')
+const selectedPrefecture = ref('')
+const selectedCity = ref('')
+const addressDetail = ref('')
 
 const currentStep = computed<Step | null>(() => flow.value.steps[currentStepIndex.value] ?? null)
 const isLastStep = computed(() => currentStepIndex.value === flow.value.steps.length - 1)
@@ -203,8 +226,12 @@ const canProceed = computed(() => {
   if (!currentStep.value) return false
   if (currentStep.value.type === 'single') return selectedOptions.value.length === 1
   if (currentStep.value.type === 'multi') return selectedOptions.value.length > 0
+  if (currentStep.value.type === 'address') return !!selectedPrefecture.value && !!selectedCity.value
   return textAnswer.value.trim().length > 0
 })
+
+// 都道府県を変更したら市区町村選択をリセット
+watch(selectedPrefecture, () => { selectedCity.value = '' })
 
 const toggleOption = (opt: string) => {
   if (currentStep.value?.type === 'single') {
@@ -226,6 +253,9 @@ const collectAnswer = () => {
     answers.value[step.attributeKey] = step.type === 'single'
       ? selectedOptions.value[0]
       : [...selectedOptions.value]
+  } else if (step.type === 'address') {
+    const detail = addressDetail.value.trim()
+    answers.value[step.attributeKey] = `${selectedPrefecture.value}${selectedCity.value}${detail ? ' ' + detail : ''}`.trim()
   } else {
     answers.value[step.attributeKey] = textAnswer.value.trim()
   }
@@ -237,7 +267,14 @@ const handleBack = () => {
   const step = flow.value.steps[currentStepIndex.value]
   const saved = answers.value[step.attributeKey]
   selectedOptions.value = Array.isArray(saved) ? saved : saved ? [saved] : []
-  textAnswer.value = typeof saved === 'string' ? saved : ''
+  textAnswer.value = typeof saved === 'string' && step.type !== 'address' ? saved : ''
+  if (step.type === 'address') {
+    // 保存済みの結合文字列から都道府県・市区町村を再選択するのは難しいため、
+    // 全体を番地欄に戻し、都道府県・市区町村は選び直してもらう
+    selectedPrefecture.value = ''
+    selectedCity.value = ''
+    addressDetail.value = typeof saved === 'string' ? saved : ''
+  }
 }
 
 const handleNext = async () => {
@@ -250,6 +287,9 @@ const handleNext = async () => {
     currentStepIndex.value++
     selectedOptions.value = []
     textAnswer.value = ''
+    selectedPrefecture.value = ''
+    selectedCity.value = ''
+    addressDetail.value = ''
   }
 }
 

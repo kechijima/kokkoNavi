@@ -89,8 +89,13 @@
               <option value="multi">複数選択</option>
               <option value="text">テキスト入力</option>
               <option value="number">数値入力</option>
+              <option value="address">住所（都道府県・市区町村を選択）</option>
             </select>
           </div>
+
+          <p v-if="step.type === 'address'" class="text-xs text-gray-400 mb-3">
+            回答者は都道府県・市区町村をプルダウンで選び、番地などの残りはテキストで入力します。保存値は1つの文章に結合されます。
+          </p>
 
           <!-- 選択肢設定 -->
           <div v-if="step.type === 'single' || step.type === 'multi'">
@@ -141,12 +146,15 @@
         </div>
 
         <!-- 新しい質問を追加 -->
-        <div class="flex gap-2 pt-2">
+        <div class="flex gap-2 pt-2 flex-wrap">
           <button @click="addStep('single')" class="btn-secondary text-sm">
             ＋ 選択肢質問を追加
           </button>
           <button @click="addStep('text')" class="btn-secondary text-sm">
             ＋ テキスト質問を追加
+          </button>
+          <button @click="addStep('address')" class="btn-secondary text-sm">
+            ＋ 住所質問を追加
           </button>
         </div>
       </div>
@@ -174,6 +182,11 @@
               {{ opt }}
             </span>
           </div>
+          <div v-else-if="step.type === 'address'" class="mt-2 flex flex-wrap gap-1">
+            <span class="bg-peach-100 text-peach-700 text-xs px-2 py-1 rounded-full">都道府県▼</span>
+            <span class="bg-peach-100 text-peach-700 text-xs px-2 py-1 rounded-full">市区町村▼</span>
+            <span class="bg-gray-100 text-gray-500 text-xs px-2 py-1 rounded-full">番地など（自由入力）</span>
+          </div>
         </div>
         <div v-if="flow.steps.length === 0" class="text-gray-400 text-sm text-center py-4">
           質問を追加してください
@@ -196,7 +209,7 @@ const flow = ref<{
   steps: Array<{
     id: string
     question: string
-    type: 'single' | 'multi' | 'text' | 'number'
+    type: 'single' | 'multi' | 'text' | 'number' | 'address'
     options?: string[]
     attributeKey: string
     tagMapping?: Record<string, string>
@@ -218,8 +231,8 @@ const flow = ref<{
     },
     {
       id: crypto.randomUUID(),
-      question: 'お住まいの都道府県を教えてください',
-      type: 'text',
+      question: 'お住まいの住所を教えてください',
+      type: 'address',
       attributeKey: 'region',
     },
     {
@@ -243,9 +256,10 @@ const stepTypeLabel = (type: string) => ({
   multi: '複数選択',
   text: 'テキスト',
   number: '数値',
+  address: '住所',
 }[type] ?? type)
 
-const addStep = (type: 'single' | 'multi' | 'text' | 'number') => {
+const addStep = (type: 'single' | 'multi' | 'text' | 'number' | 'address') => {
   flow.value.steps.push({
     id: crypto.randomUUID(),
     question: '',

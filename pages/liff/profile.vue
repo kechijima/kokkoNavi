@@ -129,12 +129,30 @@
           </div>
 
           <!-- テキスト入力 -->
-          <div v-else>
+          <div v-else-if="selectedStep.type !== 'address'">
             <input
               v-model="textAnswer"
               :type="selectedStep.type === 'number' ? 'number' : 'text'"
               class="input text-base"
               :placeholder="selectedStep.placeholder ?? '入力してください'"
+            />
+          </div>
+
+          <!-- 住所（都道府県・市区町村を選択＋残りはテキスト） -->
+          <div v-else class="space-y-3">
+            <select v-model="selectedPrefecture" class="input text-base">
+              <option value="">都道府県を選択</option>
+              <option v-for="p in prefectures" :key="p" :value="p">{{ p }}</option>
+            </select>
+            <select v-model="selectedCity" class="input text-base" :disabled="!selectedPrefecture">
+              <option value="">市区町村を選択</option>
+              <option v-for="c in citiesOf(selectedPrefecture)" :key="c" :value="c">{{ c }}</option>
+            </select>
+            <input
+              v-model="addressDetail"
+              type="text"
+              class="input text-base"
+              placeholder="番地・建物名など（任意）"
             />
           </div>
         </div>
@@ -162,6 +180,7 @@ definePageMeta({ layout: false, middleware: [] })
 
 const { db } = useFirebase()
 const config = useRuntimeConfig()
+const { prefectures, citiesOf } = useJapanAddress()
 
 const status = ref<'loading' | 'select' | 'edit' | 'done' | 'error'>('loading')
 const errorMessage = ref('')
@@ -171,13 +190,19 @@ const flow = ref<any>(null)
 const selectedStep = ref<any>(null)
 const selectedOptions = ref<string[]>([])
 const textAnswer = ref('')
+const selectedPrefecture = ref('')
+const selectedCity = ref('')
+const addressDetail = ref('')
 const saving = ref(false)
 
 const editableSteps = computed(() =>
   (flow.value?.steps ?? []).filter((s: any) =>
-    s.type === 'single' || s.type === 'multi' || s.type === 'text' || s.type === 'number'
+    s.type === 'single' || s.type === 'multi' || s.type === 'text' || s.type === 'number' || s.type === 'address'
   )
 )
+
+// 都道府県を変更したら市区町村選択をリセット
+watch(selectedPrefecture, () => { selectedCity.value = '' })
 
 const currentValueLabel = (step: any) => {
   const val = userData.value?.attributes?.[step.attributeKey]
@@ -190,6 +215,7 @@ const canSave = computed(() => {
   if (!selectedStep.value) return false
   if (selectedStep.value.type === 'single') return selectedOptions.value.length === 1
   if (selectedStep.value.type === 'multi') return selectedOptions.value.length > 0
+  if (selectedStep.value.type === 'address') return !!selectedPrefecture.value && !!selectedCity.value
   return textAnswer.value.trim().length > 0
 })
 
@@ -198,6 +224,27 @@ const selectStep = (step: any) => {
   const current = userData.value?.attributes?.[step.attributeKey]
   if (step.type === 'single' || step.type === 'multi') {
     selectedOptions.value = Array.isArray(current) ? [...current] : current ? [current] : []
+  } else if (step.type === 'address') {
+    // 保存済みの結合文字列から都道府県・市区町村を分離するのは難しいため、
+    // 都道府県・市区町村の候補にマッチする分を取り除き、残りを番地欄に入れる
+    selectedPrefecture.value = ''
+    selectedCity.value = ''
+    addressDetail.value = ''
+    const currentStr = current ? String(current) : ''
+    const matchedPref = prefectures.find(p => currentStr.startsWith(p))
+    if (matchedPref) {
+      selectedPrefecture.value = matchedPref
+      const rest = currentStr.slice(matchedPref.length)
+      const matchedCity = citiesOf(matchedPref).find(c => rest.startsWith(c))
+      if (matchedCity) {
+        selectedCity.value = matchedCity
+        addressDetail.value = rest.slice(matchedCity.length).trim()
+      } else {
+        addressDetail.value = rest.trim()
+      }
+    } else {
+      addressDetail.value = currentStr
+    }
   } else {
     textAnswer.value = current ? String(current) : ''
   }
@@ -221,7 +268,9 @@ const saveChange = async () => {
     const step = selectedStep.value!
     const value = (step.type === 'single' || step.type === 'multi')
       ? (step.type === 'single' ? selectedOptions.value[0] : [...selectedOptions.value])
-      : textAnswer.value.trim()
+      : step.type === 'address'
+        ? `${selectedPrefecture.value}${selectedCity.value}${addressDetail.value.trim() ? ' ' + addressDetail.value.trim() : ''}`.trim()
+        : textAnswer.value.trim()
 
     const updates: any = {
       [`attributes.${step.attributeKey}`]: value,
