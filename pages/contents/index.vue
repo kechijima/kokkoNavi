@@ -90,8 +90,8 @@
 
         <div v-if="!importResult" class="space-y-4">
           <p class="text-sm text-gray-500">
-            列: タイトル, カテゴリ, 企業名, 所在地, URL, 支援内容, 備考 のCSVファイルを選択してください。
-            本文は「企業名・所在地・URL・支援内容」の形式で自動生成されます。
+            列: タイトル, カテゴリ, 団体・企業名（旧: 企業名でも可）, 所在地, URL, 支援内容, 備考 のCSVファイルを選択してください。
+            本文は「団体・企業名・所在地・URL・支援内容」の形式で自動生成されます。
           </p>
 
           <div>
@@ -236,10 +236,11 @@ function resolveCategory(raw: string | undefined): string {
   return categories.value.includes('その他') ? 'その他' : (categories.value[0] ?? 'その他')
 }
 
-// CSVの1行から本文（企業名・所在地・URL・支援内容の形式）を生成
+// CSVの1行から本文（団体・企業名・所在地・URL・支援内容の形式）を生成
 function buildBodyFromRow(row: Record<string, string>): string {
   const parts: string[] = []
-  if (row['企業名']) parts.push(`〇企業名\n${row['企業名']}`)
+  const orgName = row['団体・企業名'] || row['企業名']
+  if (orgName) parts.push(`〇団体・企業名\n${orgName}`)
   if (row['所在地']) parts.push(`〇所在地\n${row['所在地']}`)
   if (row['URL']) parts.push(`〇URL\n${row['URL']}`)
   if (row['支援内容']) parts.push(`〇支援内容\n${row['支援内容']}`)
