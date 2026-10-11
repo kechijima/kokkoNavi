@@ -16,6 +16,47 @@
       </div>
     </div>
 
+    <!-- 診断選択（複数の診断が有効な場合） -->
+    <div v-else-if="status === 'select'" class="flex flex-col min-h-screen">
+      <div class="bg-white border-b border-gray-100 px-5 py-4 flex-shrink-0">
+        <div class="flex items-center gap-3">
+          <div class="w-8 h-8 bg-gradient-to-br from-peach-400 to-peach-600 rounded-lg flex items-center justify-center">
+            <span class="text-white text-sm font-bold">こ</span>
+          </div>
+          <div>
+            <p class="font-bold text-gray-800 text-sm">こっこナビ</p>
+            <p class="text-xs text-gray-400">おすすめ診断</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="flex-1 px-5 py-6 overflow-y-auto">
+        <div class="max-w-sm mx-auto">
+          <div class="flex items-start gap-3 mb-6">
+            <div class="w-10 h-10 bg-peach-100 rounded-full flex items-center justify-center flex-shrink-0">
+              <span class="text-xl">🐣</span>
+            </div>
+            <div class="bg-white rounded-2xl rounded-tl-none p-4 shadow-soft flex-1">
+              <p class="text-gray-800 text-sm leading-relaxed">どの診断を受けますか？気になるものを選んでください🌸</p>
+            </div>
+          </div>
+
+          <div class="space-y-3">
+            <button
+              v-for="f in availableFlows"
+              :key="f.id"
+              @click="selectDiagnosis(f)"
+              class="w-full bg-white rounded-xl border-2 border-gray-200 hover:border-peach-300 hover:bg-peach-50 px-4 py-4 text-left transition-all"
+            >
+              <p class="text-sm font-bold text-gray-800">{{ f.title || '（タイトル未設定）' }}</p>
+              <p v-if="f.description" class="text-xs text-gray-500 mt-1 leading-relaxed">{{ f.description }}</p>
+              <p class="text-xs text-peach-500 mt-2">{{ f.questions?.length ?? 0 }}つの質問 →</p>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- イントロ -->
     <div v-else-if="status === 'intro'" class="flex items-center justify-center min-h-screen p-6">
       <div class="text-center max-w-sm">
@@ -125,13 +166,14 @@ const route = useRoute()
 interface Option { label: string; points: number }
 interface Question { id: string; question: string; options: Option[] }
 
-const status = ref<'loading' | 'intro' | 'active' | 'result' | 'error'>('loading')
+const status = ref<'loading' | 'select' | 'intro' | 'active' | 'result' | 'error'>('loading')
 const errorMessage = ref('')
 const sending = ref(false)
 const lineUserId = ref('')
 const displayName = ref('')
 const pictureUrl = ref('')
 const flowId = ref('')
+const availableFlows = ref<any[]>([])
 
 const flow = ref<{
   title: string
@@ -271,51 +313,68 @@ const closeLiff = () => {
   if (liff?.closeWindow) liff.closeWindow()
 }
 
+// flowデータをセットしてイントロ画面へ
+const applyFlow = (id: string, data: any) => {
+  flowId.value = id
+  flow.value.title = data.title ?? 'おすすめ診断'
+  flow.value.questions = data.questions ?? []
+  flow.value.thresholds = data.thresholds ?? { contentMax: 4, chatMax: 10 }
+  flow.value.results = data.results ?? flow.value.results
+}
+
+// 診断選択画面で選んだとき
+const selectDiagnosis = (f: any) => {
+  applyFlow(f.id, f)
+  if (flow.value.questions.length === 0) {
+    errorMessage.value = '診断の質問が設定されていません'
+    status.value = 'error'
+    return
+  }
+  status.value = 'intro'
+}
+
+// 有効な診断を読み込み、0件/1件/複数件に応じて画面を決める
+const loadDiagnoses = async (): Promise<boolean> => {
+  const queryFlowId = route.query.flowId as string | undefined
+
+  if (queryFlowId) {
+    // URLで診断が指定されている場合はそれを直接読み込む
+    const snap = await getDoc(doc(db, 'diagnosis_flows', queryFlowId))
+    if (!snap.exists() || (snap.data() as any)?.isActive === false) {
+      errorMessage.value = '指定された診断が見つかりませんでした'
+      status.value = 'error'
+      return false
+    }
+    applyFlow(queryFlowId, snap.data())
+  } else {
+    // 診断が指定されていない場合、有効な診断を取得
+    const flowSnap = await getDocs(query(collection(db, 'diagnosis_flows'), where('isActive', '==', true)))
+    if (flowSnap.empty) {
+      errorMessage.value = '診断が設定されていません'
+      status.value = 'error'
+      return false
+    }
+    if (flowSnap.docs.length > 1) {
+      // 複数の診断が有効な場合はLIFF内で選んでもらう
+      availableFlows.value = flowSnap.docs
+        .map(d => ({ id: d.id, ...d.data() } as any))
+        .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+      status.value = 'select'
+      return true
+    }
+    applyFlow(flowSnap.docs[0].id, flowSnap.docs[0].data())
+  }
+
+  if (flow.value.questions.length === 0) {
+    errorMessage.value = '診断の質問が設定されていません'
+    status.value = 'error'
+    return false
+  }
+  return true
+}
+
 onMounted(async () => {
   try {
-    const queryFlowId = route.query.flowId as string | undefined
-
-    if (queryFlowId) {
-      // URLで診断が指定されている場合はそれを直接読み込む
-      const snap = await getDoc(doc(db, 'diagnosis_flows', queryFlowId))
-      if (!snap.exists() || (snap.data() as any)?.isActive === false) {
-        errorMessage.value = '指定された診断が見つかりませんでした'
-        status.value = 'error'
-        return
-      }
-      flowId.value = queryFlowId
-      const data = snap.data() as any
-      flow.value.title = data.title ?? 'おすすめ診断'
-      flow.value.questions = data.questions ?? []
-      flow.value.thresholds = data.thresholds ?? { contentMax: 4, chatMax: 10 }
-      flow.value.results = data.results ?? flow.value.results
-    } else {
-      // 診断が指定されていない場合、有効な診断が1件だけならそれを使う
-      const flowSnap = await getDocs(query(collection(db, 'diagnosis_flows'), where('isActive', '==', true)))
-      if (flowSnap.empty) {
-        errorMessage.value = '診断が設定されていません'
-        status.value = 'error'
-        return
-      }
-      if (flowSnap.docs.length > 1) {
-        errorMessage.value = '複数の診断が有効になっています。LINEの「診断」メニューから診断を選んでください'
-        status.value = 'error'
-        return
-      }
-      flowId.value = flowSnap.docs[0].id
-      const data = flowSnap.docs[0].data() as any
-      flow.value.title = data.title ?? 'おすすめ診断'
-      flow.value.questions = data.questions ?? []
-      flow.value.thresholds = data.thresholds ?? { contentMax: 4, chatMax: 10 }
-      flow.value.results = data.results ?? flow.value.results
-    }
-
-    if (flow.value.questions.length === 0) {
-      errorMessage.value = '診断の質問が設定されていません'
-      status.value = 'error'
-      return
-    }
-
     // 診断ページ専用のLIFF IDで初期化する（URLがこのLIFFで開かれるため）
     const liffId = (config.public.liffDiagnosisId as string) || '2005378903-AQ6v2XZx'
     if (!liffId) {
@@ -344,7 +403,8 @@ onMounted(async () => {
     displayName.value = profile.displayName
     pictureUrl.value = profile.pictureImageUrl ?? ''
 
-    status.value = 'intro'
+    const ok = await loadDiagnoses()
+    if (ok && status.value !== 'select') status.value = 'intro'
   } catch (e: any) {
     console.error(e)
     errorMessage.value = '初期化に失敗しました: ' + e.message
