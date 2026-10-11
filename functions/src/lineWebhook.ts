@@ -522,18 +522,82 @@ async function handleTagContentSearch(event: PostbackEvent, client: messagingApi
   })
 }
 
-// 診断LIFFのURLを取得（settings/richmenuの専用LIFF ID優先、なければ共通LIFFのパス付き）
-async function getDiagnosisUrl(): Promise<string> {
+// 指定した診断(flowId)のLIFF URLを取得（settings/richmenuの専用LIFF ID優先、なければ既定ID）
+async function getDiagnosisUrl(flowId: string): Promise<string> {
   // 診断専用LIFFのデフォルトID（管理画面で上書き可能）
   const DEFAULT_DIAGNOSIS_LIFF_ID = '2005378903-AQ6v2XZx'
+  let liffId = DEFAULT_DIAGNOSIS_LIFF_ID
   try {
     const snap = await db.collection('settings').doc('richmenu').get()
-    const liffDiagnosisId = snap.exists ? (snap.data()?.liffDiagnosisId as string) : ''
-    if (liffDiagnosisId) return `https://liff.line.me/${liffDiagnosisId}`
+    const configured = snap.exists ? (snap.data()?.liffDiagnosisId as string) : ''
+    if (configured) liffId = configured
   } catch (e) {
     console.warn('診断LIFF ID取得失敗:', e)
   }
-  return `https://liff.line.me/${DEFAULT_DIAGNOSIS_LIFF_ID}`
+  return `https://liff.line.me/${liffId}?flowId=${flowId}`
+}
+
+// 「診断」メニュー → 有効な診断の一覧を提示する（0件:準備中、1件:直接開く、複数件:選択肢を提示）
+async function handleDiagnosisMenu(event: PostbackEvent | MessageEvent, client: messagingApi.MessagingApiClient) {
+  const snap = await db.collection('diagnosis_flows').where('isActive', '==', true).get()
+  const flows = snap.docs
+    .map(d => ({ id: d.id, ...d.data() } as any))
+    .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+
+  if (flows.length === 0) {
+    await client.replyMessage({
+      replyToken: event.replyToken,
+      messages: [{ type: 'text', text: '🧭 現在ご案内できる診断がありません🙇\nまた後日ご確認ください！' }],
+    })
+    return
+  }
+
+  if (flows.length === 1) {
+    const diagnosisUrl = await getDiagnosisUrl(flows[0].id)
+    await client.replyMessage({
+      replyToken: event.replyToken,
+      messages: [{
+        type: 'template',
+        altText: flows[0].title ?? 'おすすめ診断',
+        template: {
+          type: 'buttons',
+          text: flows[0].description || '🧭 かんたんな質問に答えるだけで、あなたに合った支援の受け方をご案内します！',
+          actions: [
+            { type: 'uri', label: `🧭 ${(flows[0].title ?? '診断をはじめる').substring(0, 18)}`, uri: diagnosisUrl },
+          ],
+        },
+      }]
+    })
+    return
+  }
+
+  // 複数の診断がある場合は一覧から選んでもらう
+  const bubbles = await Promise.all(flows.slice(0, 10).map(async (f) => {
+    const diagnosisUrl = await getDiagnosisUrl(f.id)
+    return {
+      type: 'bubble', size: 'kilo',
+      body: {
+        type: 'box', layout: 'vertical', paddingAll: 'xl',
+        contents: [
+          { type: 'text', text: '🧭 診断', size: 'xs', color: '#FF8C61' },
+          { type: 'text', text: f.title || '診断', weight: 'bold', size: 'sm', wrap: true, color: '#333333', margin: 'sm' },
+          { type: 'text', text: f.description || `${f.questions?.length ?? 0}問のかんたんな質問です`, size: 'xs', wrap: true, color: '#666666', margin: 'sm' },
+        ],
+      },
+      footer: {
+        type: 'box', layout: 'vertical', paddingAll: 'lg',
+        contents: [{ type: 'button', height: 'sm', style: 'primary', color: '#FF8C61', action: { type: 'uri', label: '診断をはじめる', uri: diagnosisUrl } }],
+      },
+    }
+  }))
+
+  await client.replyMessage({
+    replyToken: event.replyToken,
+    messages: [
+      { type: 'text', text: '🧭 どの診断を受けますか？\n気になるものを選んでください👇' },
+      { type: 'flex', altText: 'おすすめ診断', contents: { type: 'carousel', contents: bubbles } } as any,
+    ],
+  })
 }
 
 // ─── Postback（リッチメニューボタン） ───────────
@@ -703,25 +767,10 @@ async function handlePostback(event: PostbackEvent, client: messagingApi.Messagi
       await handleEventSearch(event, client, {})
       break
 
-    // おすすめ診断 → 診断LIFFを開く
-    case 'diagnosis': {
-      const diagnosisUrl = await getDiagnosisUrl()
-      await client.replyMessage({
-        replyToken: event.replyToken,
-        messages: [{
-          type: 'template',
-          altText: 'おすすめ診断',
-          template: {
-            type: 'buttons',
-            text: '🧭 かんたんな質問に答えるだけで、あなたに合った支援の受け方をご案内します！',
-            actions: [
-              { type: 'uri', label: '🧭 診断をはじめる', uri: diagnosisUrl },
-            ],
-          },
-        }]
-      })
+    // おすすめ診断 → 有効な診断の一覧（または単一診断）を案内
+    case 'diagnosis':
+      await handleDiagnosisMenu(event, client)
       break
-    }
 
     // 準備中の機能（子育てサポートメニューの一部ボタン）
     case 'coming_soon':
@@ -879,23 +928,7 @@ async function handleMessage(event: MessageEvent, client: messagingApi.Messaging
   const keywords: Record<string, () => Promise<void>> = {
     'よくある質問': () => handleFaq(event, client),
     'イベント': () => handleEventSearch(event, client, {}),
-    '診断': async () => {
-      const diagnosisUrl = await getDiagnosisUrl()
-      await client.replyMessage({
-        replyToken: event.replyToken,
-        messages: [{
-          type: 'template',
-          altText: 'おすすめ診断',
-          template: {
-            type: 'buttons',
-            text: '🧭 かんたんな質問に答えるだけで、あなたに合った支援の受け方をご案内します！',
-            actions: [
-              { type: 'uri', label: '🧭 診断をはじめる', uri: diagnosisUrl },
-            ],
-          },
-        }]
-      })
-    },
+    '診断': () => handleDiagnosisMenu(event, client),
     '公式Webサイト': async () => {
       await client.replyMessage({
         replyToken: event.replyToken,

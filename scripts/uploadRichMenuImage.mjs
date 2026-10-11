@@ -92,10 +92,10 @@ const richMenuBody = {
       bounds: { x: C0, y: 0, width: COL_W, height: ROW_H },
       action: { type: 'postback', label: '支援情報を探す', data: 'action=search', displayText: '支援情報を探す' },
     },
-    // 上段中: 診断（診断LIFFを開く）
+    // 上段中: 診断（有効な診断一覧。0/1/複数件でLINE側が適切に案内する）
     {
       bounds: { x: C1, y: 0, width: COL_W, height: ROW_H },
-      action: { type: 'uri', label: '診断', uri: `https://liff.line.me/${LIFF_DIAGNOSIS_ID}` },
+      action: { type: 'postback', label: '診断', data: 'action=diagnosis', displayText: '診断' },
     },
     // 上段右: 公式Webサイト
     {

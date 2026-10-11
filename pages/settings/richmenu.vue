@@ -94,7 +94,7 @@
         </div>
         <div class="flex gap-3">
           <div class="w-24 shrink-0 font-medium text-gray-500">上段中</div>
-          <div class="break-all">診断 → 診断LIFF（{{ config.liffDiagnosisId || '未設定' }}）</div>
+          <div class="break-all">診断 → 有効な診断の一覧（診断LIFF: {{ config.liffDiagnosisId || '未設定' }}）</div>
         </div>
         <div class="flex gap-3">
           <div class="w-24 shrink-0 font-medium text-gray-500">上段右</div>
@@ -115,7 +115,11 @@
       </div>
       <div class="mt-3 pt-3 border-t border-gray-100 text-xs text-gray-500">
         <p class="font-medium text-gray-600 mb-1">🧭 おすすめ診断について</p>
-        <p>診断はリッチメニューのボタンに <code class="bg-gray-100 px-1 rounded">action=diagnosis</code> のポストバック、または上で設定した「おすすめ診断 LIFF ID」のLIFF URLを割り当てて開きます。「診断」とトークに送っても案内が表示されます。</p>
+        <p>
+          診断は <NuxtLink to="/settings/diagnosis" class="text-peach-500 underline">おすすめ診断管理</NuxtLink>
+          で複数登録・有効/無効を切り替えられます。リッチメニューの「診断」ボタン（<code class="bg-gray-100 px-1 rounded">action=diagnosis</code>）や
+          トークへの「診断」送信で、有効な診断が1件なら直接開き、複数あれば一覧から選べます。
+        </p>
       </div>
     </div>
 

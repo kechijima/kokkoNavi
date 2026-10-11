@@ -5,19 +5,22 @@
  * 画像上部のタブ部分をタップすると2つのリッチメニューを行き来できるようにします。
  *
  * 使い方:
- *   node scripts/setupTabbedRichMenu.mjs <メイン画像パス> <子育てサポート画像パス> [liff_profile_id] [website_url] [liff_diagnosis_id] [tab_height_px]
+ *   node scripts/setupTabbedRichMenu.mjs <メイン画像パス> <子育てサポート画像パス> [liff_profile_id] [website_url] [未使用] [tab_height_px]
  *
  * 例:
  *   node scripts/setupTabbedRichMenu.mjs kokkoNavi-1.jpg kokkoNavi-2.jpg
- *   node scripts/setupTabbedRichMenu.mjs kokkoNavi-1.jpg kokkoNavi-2.jpg 2005378903-LXWyy1H1 https://www.coccopeer.com/ 2005378903-AQ6v2XZx 300
+ *   node scripts/setupTabbedRichMenu.mjs kokkoNavi-1.jpg kokkoNavi-2.jpg 2005378903-LXWyy1H1 https://www.coccopeer.com/ "" 300
  *
  * 画像は2500×1686px。上部にタブ帯（高さ tab_height_px、既定300px）、
  * その下に3列×2行の6ボタングリッドがある前提です。
  * タブ部分の座標がずれる場合は、最後の引数 tab_height_px を調整してください。
  *
  * ── メインメニュー ────────────────────────────
- *  上段: 子育てサポート(→子育てサポートメニュータブへ切替) / 診断 / 公式Webサイト
+ *  上段: 子育てサポート(→子育てサポートメニュータブへ切替) / 診断(→有効な診断の一覧) / 公式Webサイト
  *  下段: 質問・相談 / プロフィール変更 / よくある質問
+ *
+ * 「診断」ボタンは おすすめ診断管理（/settings/diagnosis）で有効にした診断が
+ * 0件/1件/複数件のいずれでも適切に案内されます（複数なら一覧から選べます）。
  *
  * ── 子育てサポートメニュー（新規） ──────────────
  *  上段: 子育て全般 / ひとり親 / 医療  → いずれも紐づく種別のタグ選択メニュー
@@ -160,8 +163,8 @@ const mainRichMenuBody = {
     tabAreaToKosodate(),
     // 上段左: 子育てサポート → 子育てサポートメニュータブへ切替
     { bounds: { x: C0, y: TAB_H, width: COL_W, height: ROW_H }, action: { type: 'richmenuswitch', label: '子育てサポート', richMenuAliasId: 'kokkonavi-kosodate', data: 'action=tab_switch&to=kosodate' } },
-    // 上段中: 診断
-    { bounds: { x: C1, y: TAB_H, width: COL_W, height: ROW_H }, action: { type: 'uri', label: '診断', uri: `https://liff.line.me/${LIFF_DIAGNOSIS_ID}` } },
+    // 上段中: 診断（有効な診断一覧。0/1/複数件でLINE側が適切に案内する）
+    { bounds: { x: C1, y: TAB_H, width: COL_W, height: ROW_H }, action: { type: 'postback', label: '診断', data: 'action=diagnosis', displayText: '診断' } },
     // 上段右: 公式Webサイト
     { bounds: { x: C2, y: TAB_H, width: COL_W_LAST, height: ROW_H }, action: { type: 'uri', label: '公式Webサイト', uri: WEBSITE_URL } },
     // 下段左: 質問・相談

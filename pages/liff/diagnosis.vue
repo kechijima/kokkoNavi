@@ -114,12 +114,13 @@
 </template>
 
 <script setup lang="ts">
-import { collection, query, where, getDocs, doc, setDoc, updateDoc, getDoc, addDoc, serverTimestamp } from 'firebase/firestore'
+import { collection, query, where, getDocs, doc, getDoc, setDoc, updateDoc, addDoc, serverTimestamp } from 'firebase/firestore'
 
 definePageMeta({ layout: false, middleware: [] })
 
 const { db } = useFirebase()
 const config = useRuntimeConfig()
+const route = useRoute()
 
 interface Option { label: string; points: number }
 interface Question { id: string; question: string; options: Option[] }
@@ -130,6 +131,7 @@ const sending = ref(false)
 const lineUserId = ref('')
 const displayName = ref('')
 const pictureUrl = ref('')
+const flowId = ref('')
 
 const flow = ref<{
   title: string
@@ -213,6 +215,8 @@ const finish = async () => {
       userId: lineUserId.value,
       displayName: displayName.value,
       pictureUrl: pictureUrl.value,
+      diagnosisId: flowId.value,
+      diagnosisTitle: flow.value.title,
       score: totalScore.value,
       maxScore: flow.value.questions.reduce((s, q) => s + Math.max(0, ...q.options.map(o => o.points || 0)), 0),
       result: result.value.type,
@@ -269,17 +273,42 @@ const closeLiff = () => {
 
 onMounted(async () => {
   try {
-    const flowSnap = await getDocs(query(collection(db, 'diagnosis_flows'), where('isActive', '==', true)))
-    if (flowSnap.empty) {
-      errorMessage.value = '診断が設定されていません'
-      status.value = 'error'
-      return
+    const queryFlowId = route.query.flowId as string | undefined
+
+    if (queryFlowId) {
+      // URLで診断が指定されている場合はそれを直接読み込む
+      const snap = await getDoc(doc(db, 'diagnosis_flows', queryFlowId))
+      if (!snap.exists() || (snap.data() as any)?.isActive === false) {
+        errorMessage.value = '指定された診断が見つかりませんでした'
+        status.value = 'error'
+        return
+      }
+      flowId.value = queryFlowId
+      const data = snap.data() as any
+      flow.value.title = data.title ?? 'おすすめ診断'
+      flow.value.questions = data.questions ?? []
+      flow.value.thresholds = data.thresholds ?? { contentMax: 4, chatMax: 10 }
+      flow.value.results = data.results ?? flow.value.results
+    } else {
+      // 診断が指定されていない場合、有効な診断が1件だけならそれを使う
+      const flowSnap = await getDocs(query(collection(db, 'diagnosis_flows'), where('isActive', '==', true)))
+      if (flowSnap.empty) {
+        errorMessage.value = '診断が設定されていません'
+        status.value = 'error'
+        return
+      }
+      if (flowSnap.docs.length > 1) {
+        errorMessage.value = '複数の診断が有効になっています。LINEの「診断」メニューから診断を選んでください'
+        status.value = 'error'
+        return
+      }
+      flowId.value = flowSnap.docs[0].id
+      const data = flowSnap.docs[0].data() as any
+      flow.value.title = data.title ?? 'おすすめ診断'
+      flow.value.questions = data.questions ?? []
+      flow.value.thresholds = data.thresholds ?? { contentMax: 4, chatMax: 10 }
+      flow.value.results = data.results ?? flow.value.results
     }
-    const data = flowSnap.docs[0].data() as any
-    flow.value.title = data.title ?? 'おすすめ診断'
-    flow.value.questions = data.questions ?? []
-    flow.value.thresholds = data.thresholds ?? { contentMax: 4, chatMax: 10 }
-    flow.value.results = data.results ?? flow.value.results
 
     if (flow.value.questions.length === 0) {
       errorMessage.value = '診断の質問が設定されていません'

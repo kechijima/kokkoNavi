@@ -5,7 +5,7 @@
     <!-- サマリー -->
     <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
       <div class="card">
-        <p class="text-2xl font-bold text-gray-800">{{ results.length.toLocaleString() }}</p>
+        <p class="text-2xl font-bold text-gray-800">{{ filteredResults.length.toLocaleString() }}</p>
         <p class="text-sm text-gray-500 mt-1">総診断回数</p>
       </div>
       <div class="card">
@@ -24,20 +24,24 @@
 
     <!-- 履歴一覧 -->
     <div class="card p-0 overflow-hidden">
-      <div class="flex items-center justify-between px-5 py-4 border-b border-gray-100">
-        <h2 class="section-title mb-0">診断履歴</h2>
-        <span class="text-xs text-gray-400">{{ results.length }}件</span>
+      <div class="flex items-center justify-between px-5 py-4 border-b border-gray-100 gap-3">
+        <h2 class="section-title mb-0 flex-shrink-0">診断履歴</h2>
+        <select v-model="diagnosisFilter" class="input text-sm py-1.5 max-w-xs">
+          <option value="">すべての診断</option>
+          <option v-for="f in diagnosisFlows" :key="f.id" :value="f.id">{{ f.title || '（タイトル未設定）' }}</option>
+        </select>
+        <span class="text-xs text-gray-400 flex-shrink-0">{{ filteredResults.length }}件</span>
       </div>
 
       <div v-if="loading" class="p-8 text-center text-gray-400 text-sm">読み込み中...</div>
-      <div v-else-if="results.length === 0" class="p-10 text-center text-gray-400">
+      <div v-else-if="filteredResults.length === 0" class="p-10 text-center text-gray-400">
         <p class="text-3xl mb-2">🧭</p>
-        <p class="text-sm">まだ診断の実施履歴がありません</p>
+        <p class="text-sm">{{ results.length === 0 ? 'まだ診断の実施履歴がありません' : '該当する履歴がありません' }}</p>
       </div>
 
       <div v-else class="divide-y divide-gray-50">
         <NuxtLink
-          v-for="r in results"
+          v-for="r in filteredResults"
           :key="r.id"
           :to="`/users/${r.userId}`"
           class="flex items-center gap-3 px-5 py-3 hover:bg-peach-50 transition-colors"
@@ -47,7 +51,10 @@
             <span class="text-peach-600 text-sm font-medium">{{ r.displayName?.charAt(0) ?? '?' }}</span>
           </div>
           <div class="flex-1 min-w-0">
-            <p class="text-sm font-medium text-gray-800 truncate">{{ r.displayName || '（名称未取得）' }}</p>
+            <div class="flex items-center gap-2">
+              <p class="text-sm font-medium text-gray-800 truncate">{{ r.displayName || '（名称未取得）' }}</p>
+              <span v-if="r.diagnosisTitle" class="badge badge-gray text-xs flex-shrink-0 truncate max-w-[10rem]">{{ r.diagnosisTitle }}</span>
+            </div>
             <p class="text-xs text-gray-400">{{ formatDate(r.createdAt) }}</p>
           </div>
           <div class="text-right flex-shrink-0">
@@ -69,11 +76,19 @@ dayjs.locale('ja')
 const { db } = useFirebase()
 const loading = ref(true)
 const results = ref<any[]>([])
+const diagnosisFlows = ref<{ id: string; title: string }[]>([])
+const diagnosisFilter = ref('')
+
+const filteredResults = computed(() =>
+  diagnosisFilter.value
+    ? results.value.filter(r => r.diagnosisId === diagnosisFilter.value)
+    : results.value
+)
 
 const countByType = computed(() => ({
-  content: results.value.filter(r => r.result === 'content').length,
-  chat: results.value.filter(r => r.result === 'chat').length,
-  online: results.value.filter(r => r.result === 'online').length,
+  content: filteredResults.value.filter(r => r.result === 'content').length,
+  chat: filteredResults.value.filter(r => r.result === 'chat').length,
+  online: filteredResults.value.filter(r => r.result === 'online').length,
 }))
 
 const typeLabel = (t: string) => ({
@@ -102,6 +117,12 @@ onMounted(() => {
   }, (err) => {
     console.error('診断履歴の取得に失敗:', err)
     loading.value = false
+  })
+
+  onSnapshot(collection(db, 'diagnosis_flows'), (snap) => {
+    diagnosisFlows.value = snap.docs
+      .map(d => ({ id: d.id, title: (d.data() as any).title ?? '' }))
+      .sort((a, b) => a.title.localeCompare(b.title, 'ja'))
   })
 })
 </script>

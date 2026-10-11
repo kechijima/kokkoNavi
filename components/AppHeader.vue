@@ -22,6 +22,7 @@ const pageTitles: Record<string, string> = {
   '/segments': 'セグメント管理',
   '/broadcasts': '配信管理',
   '/diagnostics': '診断履歴',
+  '/settings/diagnosis': 'おすすめ診断管理',
   '/settings/onboarding': 'オンボーディング設定',
   '/settings/admins': '管理者設定',
 }
@@ -31,6 +32,7 @@ const pageTitle = computed(() => {
   if (pageTitles[path]) return pageTitles[path]
   if (path.startsWith('/users/')) return 'ユーザー詳細'
   if (path.startsWith('/contents/')) return 'コンテンツ編集'
+  if (path.startsWith('/settings/diagnosis/')) return path.endsWith('/new') ? '診断を追加' : '診断を編集'
   return 'こっこナビ管理画面'
 })
 
