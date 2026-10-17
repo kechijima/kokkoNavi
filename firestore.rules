@@ -64,6 +64,12 @@ service cloud.firestore {
       allow read, update, delete: if isAdmin();
     }
 
+    // オンライン相談時のTimeRex URL送信リクエスト（LIFFから作成可・管理者のみ閲覧）
+    match /timerex_link_requests/{requestId} {
+      allow create: if true;
+      allow read, update, delete: if isAdmin();
+    }
+
     // タグマスター（管理者のみ）
     match /tags/{tagId} {
       allow read, write: if isAdmin();
