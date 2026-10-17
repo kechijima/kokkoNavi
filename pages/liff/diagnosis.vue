@@ -58,32 +58,46 @@
     </div>
 
     <!-- イントロ -->
-    <div v-else-if="status === 'intro'" class="flex items-center justify-center min-h-screen p-6">
-      <div class="text-center max-w-sm">
-        <div class="w-24 h-24 bg-gradient-to-br from-peach-400 to-peach-600 rounded-full flex items-center justify-center mx-auto mb-6 shadow-peach">
-          <span class="text-4xl">🧭</span>
+    <div v-else-if="status === 'intro'" class="flex flex-col min-h-screen">
+      <div class="bg-white border-b border-gray-100 px-5 py-4 flex-shrink-0">
+        <button type="button" class="flex items-center gap-3 w-full text-left" :disabled="!canBackToList" @click="backToList">
+          <div class="w-8 h-8 bg-gradient-to-br from-peach-400 to-peach-600 rounded-lg flex items-center justify-center flex-shrink-0">
+            <span class="text-white text-sm font-bold">こ</span>
+          </div>
+          <div>
+            <p class="font-bold text-gray-800 text-sm">こっこナビ</p>
+            <p class="text-xs text-gray-400">{{ canBackToList ? '診断一覧に戻る' : 'おすすめ診断' }}</p>
+          </div>
+        </button>
+      </div>
+      <div class="flex-1 flex items-center justify-center p-6">
+        <div class="text-center max-w-sm">
+          <div class="w-24 h-24 bg-gradient-to-br from-peach-400 to-peach-600 rounded-full flex items-center justify-center mx-auto mb-6 shadow-peach">
+            <span class="text-4xl">🧭</span>
+          </div>
+          <h1 class="text-xl font-bold text-gray-800 mb-3">{{ flow.title }}</h1>
+          <p class="text-gray-600 text-sm leading-relaxed mb-6">
+            かんたんな{{ flow.questions.length }}つの質問に答えるだけ。<br>
+            あなたに合った支援の受け方をご案内します🌸
+          </p>
+          <button @click="status = 'active'" class="btn-primary w-full">診断をはじめる →</button>
+          <button v-if="canBackToList" @click="backToList" class="btn-secondary w-full mt-3">← 診断一覧に戻る</button>
         </div>
-        <h1 class="text-xl font-bold text-gray-800 mb-3">{{ flow.title }}</h1>
-        <p class="text-gray-600 text-sm leading-relaxed mb-6">
-          かんたんな{{ flow.questions.length }}つの質問に答えるだけ。<br>
-          あなたに合った支援の受け方をご案内します🌸
-        </p>
-        <button @click="status = 'active'" class="btn-primary w-full">診断をはじめる →</button>
       </div>
     </div>
 
     <!-- 質問 -->
     <div v-else-if="status === 'active' && currentQuestion" class="flex flex-col min-h-screen">
       <div class="bg-white border-b border-gray-100 px-5 py-4 flex-shrink-0">
-        <div class="flex items-center gap-3 mb-3">
-          <div class="w-8 h-8 bg-gradient-to-br from-peach-400 to-peach-600 rounded-lg flex items-center justify-center">
+        <button type="button" class="flex items-center gap-3 mb-3 w-full text-left" :disabled="!canBackToList" @click="backToList">
+          <div class="w-8 h-8 bg-gradient-to-br from-peach-400 to-peach-600 rounded-lg flex items-center justify-center flex-shrink-0">
             <span class="text-white text-sm font-bold">こ</span>
           </div>
           <div>
             <p class="font-bold text-gray-800 text-sm">こっこナビ</p>
-            <p class="text-xs text-gray-400">おすすめ診断</p>
+            <p class="text-xs text-gray-400">{{ canBackToList ? '診断一覧に戻る' : 'おすすめ診断' }}</p>
           </div>
-        </div>
+        </button>
         <div class="flex items-center gap-2">
           <div class="flex-1 bg-gray-100 rounded-full h-1.5">
             <div class="bg-peach-500 h-1.5 rounded-full transition-all duration-500" :style="{ width: `${(currentIndex / flow.questions.length) * 100}%` }" />
@@ -124,7 +138,19 @@
     </div>
 
     <!-- 結果 -->
-    <div v-else-if="status === 'result'" class="flex items-center justify-center min-h-screen p-6">
+    <div v-else-if="status === 'result'" class="flex flex-col min-h-screen">
+      <div v-if="canBackToList" class="bg-white border-b border-gray-100 px-5 py-4 flex-shrink-0">
+        <button type="button" class="flex items-center gap-3 w-full text-left" @click="backToList">
+          <div class="w-8 h-8 bg-gradient-to-br from-peach-400 to-peach-600 rounded-lg flex items-center justify-center flex-shrink-0">
+            <span class="text-white text-sm font-bold">こ</span>
+          </div>
+          <div>
+            <p class="font-bold text-gray-800 text-sm">こっこナビ</p>
+            <p class="text-xs text-gray-400">診断一覧に戻る</p>
+          </div>
+        </button>
+      </div>
+      <div class="flex-1 flex items-center justify-center p-6">
       <div class="text-center max-w-sm w-full">
         <div class="w-24 h-24 rounded-full flex items-center justify-center mx-auto mb-6 shadow-peach"
           :class="result.type === 'online' ? 'bg-gradient-to-br from-rose-400 to-rose-600' : result.type === 'chat' ? 'bg-gradient-to-br from-peach-400 to-peach-600' : 'bg-gradient-to-br from-emerald-400 to-emerald-500'">
@@ -150,6 +176,7 @@
 
         <button @click="closeLiff" class="btn-secondary w-full">LINEに戻る</button>
       </div>
+      </div>
     </div>
   </div>
 </template>
@@ -174,6 +201,9 @@ const displayName = ref('')
 const pictureUrl = ref('')
 const flowId = ref('')
 const availableFlows = ref<any[]>([])
+const hasMultipleDiagnoses = ref(false)
+
+const TIMEREX_URL = 'https://timerex.net/s/cocco.peer_19e1/454701aa/'
 
 const flow = ref<{
   title: string
@@ -191,6 +221,9 @@ const scores = ref<number[]>([])
 const currentQuestion = computed<Question | null>(() => flow.value.questions[currentIndex.value] ?? null)
 
 const totalScore = computed(() => scores.value.reduce((a, b) => a + b, 0))
+
+// 診断が複数ある場合のみ「診断一覧に戻る」を表示する
+const canBackToList = computed(() => hasMultipleDiagnoses.value)
 
 const result = computed(() => {
   const total = totalScore.value
@@ -293,9 +326,27 @@ const requestConsultation = async (kind: string) => {
       console.warn('sendMessages失敗、Firestoreに記録:', e)
       await recordRequestFallback(kind)
     }
+    // オンライン相談の場合は日程調整ツール（TimeRex）のURLをBotから送信する
+    if (kind === 'オンライン相談') {
+      await requestTimerexLink()
+    }
     closeLiff()
   } finally {
     sending.value = false
+  }
+}
+
+// オンライン相談申し込み時、日程調整ツール（TimeRex）のURLをBotから送信してもらうための記録
+// （Bot発信のメッセージはクライアントから直接送れないため、Cloud Function経由でプッシュする）
+const requestTimerexLink = async () => {
+  try {
+    await addDoc(collection(db, 'timerex_link_requests'), {
+      userId: lineUserId.value,
+      url: TIMEREX_URL,
+      createdAt: serverTimestamp(),
+    })
+  } catch (e) {
+    console.warn('TimeRex URLリクエストの記録に失敗:', e)
   }
 }
 
@@ -322,6 +373,24 @@ const applyFlow = (id: string, data: any) => {
   flow.value.results = data.results ?? flow.value.results
 }
 
+// 診断一覧に戻る（LIFFにはブラウザバックがないため）
+const backToList = async () => {
+  currentIndex.value = 0
+  scores.value = []
+  if (availableFlows.value.length === 0) {
+    // 直接リンクで入った場合など、一覧をまだ取得していなければ取得する
+    try {
+      const flowSnap = await getDocs(query(collection(db, 'diagnosis_flows'), where('isActive', '==', true)))
+      availableFlows.value = flowSnap.docs
+        .map(d => ({ id: d.id, ...d.data() } as any))
+        .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+    } catch (e) {
+      console.warn('診断一覧の再取得に失敗:', e)
+    }
+  }
+  status.value = 'select'
+}
+
 // 診断選択画面で選んだとき
 const selectDiagnosis = (f: any) => {
   applyFlow(f.id, f)
@@ -346,6 +415,11 @@ const loadDiagnoses = async (): Promise<boolean> => {
       return false
     }
     applyFlow(queryFlowId, snap.data())
+    // 直接リンクで入った場合も、他に有効な診断があれば一覧に戻れるようにする
+    try {
+      const activeSnap = await getDocs(query(collection(db, 'diagnosis_flows'), where('isActive', '==', true)))
+      hasMultipleDiagnoses.value = activeSnap.docs.length > 1
+    } catch {}
   } else {
     // 診断が指定されていない場合、有効な診断を取得
     const flowSnap = await getDocs(query(collection(db, 'diagnosis_flows'), where('isActive', '==', true)))
@@ -354,6 +428,7 @@ const loadDiagnoses = async (): Promise<boolean> => {
       status.value = 'error'
       return false
     }
+    hasMultipleDiagnoses.value = flowSnap.docs.length > 1
     if (flowSnap.docs.length > 1) {
       // 複数の診断が有効な場合はLIFF内で選んでもらう
       availableFlows.value = flowSnap.docs
