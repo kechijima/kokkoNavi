@@ -326,27 +326,26 @@ const requestConsultation = async (kind: string) => {
       console.warn('sendMessages失敗、Firestoreに記録:', e)
       await recordRequestFallback(kind)
     }
-    // オンライン相談の場合は日程調整ツール（TimeRex）のURLをBotから送信する
-    if (kind === 'オンライン相談') {
-      await requestTimerexLink()
-    }
+    // チャット相談・オンライン相談とも、現在対応体制が準備中であることをBotから案内する
+    await sendConsultationNotice(kind)
     closeLiff()
   } finally {
     sending.value = false
   }
 }
 
-// オンライン相談申し込み時、日程調整ツール（TimeRex）のURLをBotから送信してもらうための記録
+// チャット相談・オンライン相談の申し込み直後、現在準備中であることをBotから案内してもらうための記録
 // （Bot発信のメッセージはクライアントから直接送れないため、Cloud Function経由でプッシュする）
-const requestTimerexLink = async () => {
+const sendConsultationNotice = async (kind: string) => {
   try {
-    await addDoc(collection(db, 'timerex_link_requests'), {
+    await addDoc(collection(db, 'consultation_notices'), {
       userId: lineUserId.value,
-      url: TIMEREX_URL,
+      kind,
+      url: kind === 'オンライン相談' ? TIMEREX_URL : null,
       createdAt: serverTimestamp(),
     })
   } catch (e) {
-    console.warn('TimeRex URLリクエストの記録に失敗:', e)
+    console.warn('準備中案内リクエストの記録に失敗:', e)
   }
 }
 

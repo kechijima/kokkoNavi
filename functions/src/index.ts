@@ -4,6 +4,6 @@ import { broadcastScheduler } from './broadcastScheduler'
 import { onNewMessage } from './lineMessageSender'
 import { onConsultationRequest } from './consultationNotifier'
 import { onDiagnosisResult } from './diagnosisNotifier'
-import { onTimerexLinkRequest } from './timerexNotifier'
+import { onConsultationNotice } from './consultationNoticeNotifier'
 
-export { lineWebhook, broadcastScheduler, onNewMessage, onConsultationRequest, onDiagnosisResult, onTimerexLinkRequest }
+export { lineWebhook, broadcastScheduler, onNewMessage, onConsultationRequest, onDiagnosisResult, onConsultationNotice }
