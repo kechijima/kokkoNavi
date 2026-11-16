@@ -1,6 +1,13 @@
 import * as functions from 'firebase-functions/v1'
 import { admin, db } from './firebaseAdmin'
 
+// 日程調整ツール（TimeRex）のURL。consultation_notices は未認証のLIFF
+// クライアントから作成できる(firestore.rules で allow create: if true)ため、
+// クライアントが書き込んだurlフィールドは信用せず、サーバー側の固定値を使う。
+// 任意のURL（フィッシングリンク等）をクライアントから指定できてしまうと、
+// 攻撃者が任意のuserId宛てに公式Bot名義でそのURLを送りつけられてしまう。
+const TIMEREX_URL = 'https://timerex.net/s/cocco.peer_19e1/454701aa/'
+
 // チャット相談・オンライン相談の申し込み直後に、現在対応体制を準備中であることを
 // 伝えるBotメッセージを送信する。オンライン相談の場合は日程調整ツール（TimeRex）の
 // URLも案内する。クライアント（LIFF）からはBot発信のメッセージを直接送れないため、
@@ -12,10 +19,10 @@ export const onConsultationNotice = functions
     const data = snap.data()
     const userId = data.userId as string | undefined
     const kind = data.kind as string | undefined
-    if (!userId || !kind) return
+    if (!userId || (kind !== 'オンライン相談' && kind !== 'チャット相談')) return
 
     const text = kind === 'オンライン相談'
-      ? `オンライン相談のお申し込みを受け付けました😊\n現在、ご案内できる体制を準備中です。準備が整いましたら、こちらのトークより日程調整のご案内をお送りいたします。今しばらくお待ちください🙏\n\n【日程調整ツール（準備中）】\n${data.url ?? ''}`
+      ? `オンライン相談のお申し込みを受け付けました😊\n現在、ご案内できる体制を準備中です。準備が整いましたら、こちらのトークより日程調整のご案内をお送りいたします。今しばらくお待ちください🙏\n\n【日程調整ツール（準備中）】\n${TIMEREX_URL}`
       : 'チャット相談のお申し込みを受け付けました😊\n現在、担当者が対応できる体制を準備中です。準備が整いましたら、こちらのトークよりご連絡いたします。今しばらくお待ちください🙏'
 
     try {

@@ -38,7 +38,11 @@ import fs from 'fs'
 import path from 'path'
 import https from 'https'
 
-const TOKEN = process.env.LINE_CHANNEL_ACCESS_TOKEN || 'BrFVg6Mnm5iqKVw1Ui9cQW89mzILB/dlYXnu8ClaZRoDEo1EawW5+MimR/l7SVKybQFyG2EI/mnB9sZXvRo7qfNeE7GMA2ICmHSNg7AIvjLbLgDllYjQFKxjzCGJ5u5P92xe/Fh/24Kk1naS9h1dVgdB04t89/1O/w1cDnyilFU='
+const TOKEN = process.env.LINE_CHANNEL_ACCESS_TOKEN
+if (!TOKEN) {
+  console.error('❌ 環境変数 LINE_CHANNEL_ACCESS_TOKEN を設定してください')
+  process.exit(1)
+}
 
 const MAIN_IMAGE_PATH = process.argv[2]
 const KOSODATE_IMAGE_PATH = process.argv[3]

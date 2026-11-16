@@ -10,7 +10,14 @@ const app = initializeApp({
 const db = getFirestore(app)
 const auth = getAuth(app)
 
-await signInWithEmailAndPassword(auth, 'alljapanekiden@gmail.com', 's0011324')
+const email = process.argv[2]
+const password = process.argv[3]
+if (!email || !password) {
+  console.error('使い方: node scripts/diagnose.mjs <email> <password>')
+  process.exit(1)
+}
+
+await signInWithEmailAndPassword(auth, email, password)
 
 console.log('=== 配信テスト 診断レポート ===\n')
 

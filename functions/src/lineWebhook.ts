@@ -1,3 +1,4 @@
+import * as crypto from 'crypto'
 import * as functions from 'firebase-functions/v1'
 import { admin, db } from './firebaseAdmin'
 import {
@@ -13,6 +14,25 @@ import type { Request, Response } from 'firebase-functions/v1'
 const getLineClient = () => new messagingApi.MessagingApiClient({
   channelAccessToken: process.env.LINE_CHANNEL_ACCESS_TOKEN ?? '',
 })
+
+// LINEからの正規のWebhookリクエストであることを検証する。
+// x-line-signatureヘッダー（チャネルシークレットでのHMAC-SHA256署名）が
+// 一致しない場合、リクエストボディは第三者による偽装とみなして拒否する。
+// これがないと誰でも任意のuserIdになりすましたイベントを送り込める。
+function isValidLineSignature(req: Request): boolean {
+  const channelSecret = process.env.LINE_CHANNEL_SECRET
+  const signature = req.headers['x-line-signature']
+  // rawBodyはFirebase Functionsのランタイムが実行時に付与するが、
+  // firebase-functions/v1 が re-export する型定義には含まれていないため明示的に取得する
+  const rawBody = (req as unknown as { rawBody?: Buffer }).rawBody
+  if (!channelSecret || typeof signature !== 'string' || !rawBody) return false
+
+  const expected = crypto.createHmac('sha256', channelSecret).update(rawBody).digest('base64')
+  const expectedBuf = Buffer.from(expected, 'base64')
+  const actualBuf = Buffer.from(signature, 'base64')
+  if (expectedBuf.length !== actualBuf.length) return false
+  return crypto.timingSafeEqual(expectedBuf, actualBuf)
+}
 
 // ─── オンボーディング ────────────────────────────
 
@@ -959,6 +979,12 @@ export const lineWebhook = functions
   .region('asia-northeast1')
   .https.onRequest(async (req: Request, res: Response) => {
     if (req.method !== 'POST') { res.status(405).send('Method Not Allowed'); return }
+
+    if (!isValidLineSignature(req)) {
+      console.error('Webhook error: invalid x-line-signature')
+      res.status(401).send('Invalid signature')
+      return
+    }
 
     const client = getLineClient()
     const events: WebhookEvent[] = req.body.events ?? []

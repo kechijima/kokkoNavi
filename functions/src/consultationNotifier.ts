@@ -13,14 +13,16 @@ export const onConsultationRequest = functions
     if (!after) return
 
     const pending = after.pendingConsultation
-    if (!pending || !pending.kind) return
+    // kindは想定している2種類の文字列のみ受け付ける（users書き込みは
+    // firestore.rules で誰でも可能なため、自由文をそのまま信用しない）
+    if (!pending || (pending.kind !== 'チャット相談' && pending.kind !== 'オンライン相談')) return
 
     // 同じリクエストの重複処理を防ぐ（at が前回と同じなら何もしない）
     const prevAt = before?.pendingConsultation?.at
     if (prevAt && prevAt === pending.at) return
 
     const { userId } = context.params
-    const scoreText = pending.score != null ? `（重要度スコア: ${pending.score}点）` : ''
+    const scoreText = typeof pending.score === 'number' ? `（重要度スコア: ${pending.score}点）` : ''
     const text = `【${pending.kind}を希望します】\nおすすめ診断より${scoreText}`
 
     try {

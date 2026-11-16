@@ -160,7 +160,7 @@ async function seed() {
   const password = process.argv[3]
   if (!password) {
     console.error('使い方: node scripts/seed.mjs <email> <password>')
-    console.error('例:     node scripts/seed.mjs alljapanekiden@gmail.com s0011324')
+    console.error('例:     node scripts/seed.mjs alljapanekiden@gmail.com <パスワード>')
     process.exit(1)
   }
 

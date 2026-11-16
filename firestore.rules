@@ -10,9 +10,12 @@ service cloud.firestore {
     // ユーザー情報
     // - 管理者: 読み書き可
     // - LIFFユーザー: 自分のドキュメントのみ書き込み可（未認証でもLINEユーザーIDで識別）
+    //   get（IDを指定した単独取得）のみ許可し、list（全件取得）は管理者限定にする。
+    //   list まで許可すると、LINEユーザーIDを知らなくても全ユーザーの氏名・住所等の
+    //   個人情報を誰でも一括取得できてしまうため。
     match /users/{userId} {
       allow read, write: if isAdmin();
-      allow read: if true; // LIFFからの完了状態確認を許可
+      allow get: if true; // LIFFからの完了状態確認を許可（1件ずつの取得のみ）
       allow create, update: if true; // LIFFからの書き込みを許可
     }
 
