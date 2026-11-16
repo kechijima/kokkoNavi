@@ -236,15 +236,34 @@ function resolveCategory(raw: string | undefined): string {
   return categories.value.includes('その他') ? 'その他' : (categories.value[0] ?? 'その他')
 }
 
-// CSVの1行から本文（団体・企業名・所在地・URL・支援内容の形式）を生成
+// HTML特殊文字をエスケープ
+function escapeHtml(text: string): string {
+  return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+}
+
+// 項目内の改行（セル内の複数行）を<br>に変換してエスケープ
+function textToHtml(text: string): string {
+  return escapeHtml(text).replace(/\r\n|\r|\n/g, '<br>')
+}
+
+// CSVの1行から本文（団体・企業名・所在地・URL・支援内容・備考の形式）をHTMLで生成。
+// リッチエディタ編集後（画面表示）と公開ページ・LINE表示とで見た目が変わらないよう、
+// プレーンテキスト(\n)ではなく最初からHTML（<p>/<br>）で組み立てる。
 function buildBodyFromRow(row: Record<string, string>): string {
   const parts: string[] = []
   const orgName = row['団体・企業名'] || row['企業名']
-  if (orgName) parts.push(`〇団体・企業名\n${orgName}`)
-  if (row['所在地']) parts.push(`〇所在地\n${row['所在地']}`)
-  if (row['URL']) parts.push(`〇URL\n${row['URL']}`)
-  if (row['支援内容']) parts.push(`〇支援内容\n${row['支援内容']}`)
-  return parts.join('\n\n')
+  if (orgName) parts.push(`<p>〇団体・企業名<br>${textToHtml(orgName)}</p>`)
+  if (row['所在地']) parts.push(`<p>〇所在地<br>${textToHtml(row['所在地'])}</p>`)
+  if (row['URL']) {
+    const url = row['URL'].trim()
+    const safeUrl = escapeHtml(url)
+    // http(s)のURLはそのままリンク化（手動でリンク設定する手間を省く）
+    const urlHtml = /^https?:\/\//i.test(url) ? `<a href="${safeUrl}">${safeUrl}</a>` : textToHtml(url)
+    parts.push(`<p>〇URL<br>${urlHtml}</p>`)
+  }
+  if (row['支援内容']) parts.push(`<p>〇支援内容<br>${textToHtml(row['支援内容'])}</p>`)
+  if (row['備考']) parts.push(`<p>〇備考<br>${textToHtml(row['備考'])}</p>`)
+  return parts.join('')
 }
 
 const onFileSelected = async (e: Event) => {

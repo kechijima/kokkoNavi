@@ -175,7 +175,7 @@
           <!-- 公開ページと同じ判定: HTML本文はそのまま、プレーンテキストは改行保持 -->
           <div
             v-if="isHtmlBody"
-            class="bg-white rounded-xl p-5 shadow-sm text-sm text-gray-700 leading-relaxed rich-body"
+            class="bg-white rounded-xl p-5 shadow-sm text-sm text-gray-700 leading-relaxed whitespace-pre-line rich-body"
             v-html="form.body || '<span class=\'text-gray-400\'>（本文未入力）</span>'"
           />
           <div v-else class="bg-white rounded-xl p-5 shadow-sm text-sm text-gray-700 leading-relaxed whitespace-pre-line">{{ form.body || '（本文未入力）' }}</div>
