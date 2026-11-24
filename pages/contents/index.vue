@@ -90,8 +90,8 @@
 
         <div v-if="!importResult" class="space-y-4">
           <p class="text-sm text-gray-500">
-            列: タイトル, カテゴリ, 団体・企業名（旧: 企業名でも可）, 所在地, URL, 支援内容, 備考 のCSVファイルを選択してください。
-            本文は「団体・企業名・所在地・URL・支援内容」の形式で自動生成されます。
+            列: タイトル, カテゴリ, 団体・企業名（旧: 企業名でも可）, 所在地（「所在地」で始まる列名ならOK）, URL, 支援内容, 備考 のCSVファイルを選択してください。
+            本文は「団体・企業名・所在地・URL・支援内容・備考」の形式で自動生成されます。
           </p>
 
           <div>
@@ -246,6 +246,13 @@ function textToHtml(text: string): string {
   return escapeHtml(text).replace(/\r\n|\r|\n/g, '<br>')
 }
 
+// 列名の完全一致だけでなく、「所在地（郵便番号・住所・電話・受付時間）」のように
+// 注釈が付いた列名にも対応できるよう、指定した接頭辞で始まる列を探して値を返す
+function findFieldByPrefix(row: Record<string, string>, prefix: string): string | undefined {
+  const key = Object.keys(row).find(k => k.startsWith(prefix))
+  return key ? row[key] : undefined
+}
+
 // CSVの1行から本文（団体・企業名・所在地・URL・支援内容・備考の形式）をHTMLで生成。
 // リッチエディタ編集後（画面表示）と公開ページ・LINE表示とで見た目が変わらないよう、
 // プレーンテキスト(\n)ではなく最初からHTML（<p>/<br>）で組み立てる。
@@ -253,7 +260,8 @@ function buildBodyFromRow(row: Record<string, string>): string {
   const parts: string[] = []
   const orgName = row['団体・企業名'] || row['企業名']
   if (orgName) parts.push(`<p>〇団体・企業名<br>${textToHtml(orgName)}</p>`)
-  if (row['所在地']) parts.push(`<p>〇所在地<br>${textToHtml(row['所在地'])}</p>`)
+  const location = findFieldByPrefix(row, '所在地')
+  if (location) parts.push(`<p>〇所在地<br>${textToHtml(location)}</p>`)
   if (row['URL']) {
     const url = row['URL'].trim()
     const safeUrl = escapeHtml(url)
